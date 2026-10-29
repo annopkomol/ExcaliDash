@@ -79,12 +79,12 @@ type BuildRemoteSceneUpdateInput = {
 };
 
 /**
- * Default style for newly drawn elements: Nunito (FONT_FAMILY.Nunito = 6) and
- * roughness 0 ("Architect" sloppiness) instead of Excalidraw's hand-drawn look.
+ * Default style for newly drawn elements: Helvetica (FONT_FAMILY.Helvetica = 2, a
+ * system sans-serif stack, nothing to download) and roughness 0 ("Architect" sloppiness) instead of Excalidraw's hand-drawn look.
  * Used until a drawing has saved its own choice (see getPersistedAppState).
  */
 export const DEFAULT_ITEM_STYLE = {
-  currentItemFontFamily: 6,
+  currentItemFontFamily: 2,
   currentItemRoughness: 0,
 } as const;
 

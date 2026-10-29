@@ -21,6 +21,12 @@ import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { getJiraConnection, getJiraIssue } from "../../api";
 import { parseJiraGroupId, refreshJiraCards } from "../../utils/jiraCard";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
+import { StickyNoteMenu } from "../../components/StickyNoteMenu";
+import {
+  DEFAULT_STICKY_COLOR,
+  STICKY_TEXT_STATE,
+  buildStickyNote,
+} from "../../utils/stickyNote";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
@@ -154,6 +160,65 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
+  const [stickyColor, setStickyColor] = React.useState<string>(DEFAULT_STICKY_COLOR);
+
+  const addStickyNote = React.useCallback(
+    (color: string) => {
+      const api = excalidrawApi as any;
+      if (!api || !canEdit || isHistoryOpen) return;
+      setStickyColor(color);
+      const appState = api.getAppState();
+      const zoom = appState.zoom?.value || 1;
+      const center = {
+        x: -appState.scrollX + appState.width / 2 / zoom,
+        y: -appState.scrollY + appState.height / 2 / zoom,
+      };
+      const [note] = buildStickyNote(center, color);
+      api.updateScene({
+        elements: [...api.getSceneElements(), note],
+        appState: {
+          ...STICKY_TEXT_STATE,
+          selectedElementIds: { [note.id]: true },
+        },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      // Enter on a selected container starts typing straight into the note.
+      window.setTimeout(() => {
+        document
+          .querySelector(".excalidraw-container, .excalidraw")
+          ?.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Enter",
+              code: "Enter",
+              bubbles: true,
+            }),
+          );
+      }, 50);
+    },
+    [excalidrawApi, canEdit, isHistoryOpen],
+  );
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        !event.shiftKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.key.toLowerCase() !== "n"
+      )
+        return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest("input, textarea, select, [contenteditable='true']")
+      )
+        return;
+      event.preventDefault();
+      addStickyNote(stickyColor);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [addStickyNote, stickyColor]);
   const peerNames = React.useMemo(
     () => [me.name, ...peers.map((p) => p.name)],
     [me.name, peers],
@@ -515,6 +580,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
               <MainMenu.DefaultItems.ChangeCanvasBackground />
               <MainMenu.DefaultItems.Help />
               <MainMenu.Separator />
+              <MainMenu.ItemCustom>
+                <StickyNoteMenu
+                  selected={stickyColor}
+                  disabled={!canEdit}
+                  onAdd={addStickyNote}
+                />
+              </MainMenu.ItemCustom>
               <MainMenu.Item onSelect={() => setIsJiraOpen(true)}>
                 Add Jira card
               </MainMenu.Item>

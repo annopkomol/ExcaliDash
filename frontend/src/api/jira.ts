@@ -3,7 +3,7 @@ import type { JiraIssueType, JiraStatusCategory } from "../utils/jiraCard";
 
 export type JiraConnectionStatus =
   | { connected: false }
-  | { connected: true; siteUrl: string; email: string };
+  | { connected: true; siteUrl: string; email?: string };
 
 export type JiraIssue = {
   key: string;

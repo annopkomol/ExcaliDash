@@ -29,7 +29,6 @@ model User {
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
   chatGptConnection   ChatGptConnection?
-  jiraConnection      JiraConnection?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -73,11 +72,11 @@ model ChatGptConnection {
 }
 
 model JiraConnection {
-  userId            String   @id
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String   @id @default("default")
   siteUrl           String
   email             String
   apiTokenEncrypted String
+  updatedById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

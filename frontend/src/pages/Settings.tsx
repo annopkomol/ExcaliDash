@@ -10,6 +10,7 @@ import { SettingsMainGrid } from "./settings/SettingsMainGrid";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SettingsConfirmModals } from "./settings/SettingsConfirmModals";
 import { ApiKeysCard } from "./profile/ApiKeysCard";
+import { JiraCard } from "./settings/JiraCard";
 import { Toaster } from "sonner";
 import { displayFontFamily } from "../utils/displayFont";
 import {
@@ -351,6 +352,10 @@ export const Settings: React.FC = () => {
         )}{" "}
         <div className="space-y-10">
           <ApiKeysCard
+            disabled={mustResetPassword}
+            onSuccess={setSettingsSuccess}
+          />
+          <JiraCard
             disabled={mustResetPassword}
             onSuccess={setSettingsSuccess}
           />

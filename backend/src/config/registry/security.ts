@@ -52,6 +52,13 @@ export const securityEnv: readonly EnvVarSpec[] = [
     doc: "Pepper mixed into API-key hashes; set before creating keys (see docs).",
   },
   {
+    name: "JIRA_TOKEN_ENCRYPTION_KEY",
+    group: "Security",
+    kind: "string",
+    secret: true,
+    doc: "Key used to encrypt stored Jira API tokens (AES-256-GCM); falls back to JWT_SECRET when unset. Changing it requires users to reconnect Jira.",
+  },
+  {
     name: "DEBUG_CSRF",
     group: "Security",
     kind: "boolean",

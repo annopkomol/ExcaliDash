@@ -1,5 +1,7 @@
 import React from "react";
 import { toast } from "sonner";
+import * as api from "../api";
+import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import {
   JIRA_TYPES,
@@ -38,7 +40,42 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
   const [statusIndex, setStatusIndex] = React.useState(0);
   const [assignee, setAssignee] = React.useState("");
 
-  const { key, url } = parseJiraReference(reference);
+  const [connected, setConnected] = React.useState(false);
+  const [fetching, setFetching] = React.useState(false);
+  const [fetchedStatus, setFetchedStatus] = React.useState<{
+    label: string;
+    category: JiraStatusCategory;
+  } | null>(null);
+  const [fetchedUrl, setFetchedUrl] = React.useState<string | undefined>();
+
+  React.useEffect(() => {
+    api
+      .getJiraConnection()
+      .then((next) => setConnected(next.connected))
+      .catch(() => setConnected(false));
+  }, []);
+
+  const parsed = parseJiraReference(reference);
+  const { key } = parsed;
+  const url = parsed.url ?? fetchedUrl;
+
+  const handleFetch = async () => {
+    if (!key) return;
+    setFetching(true);
+    try {
+      const issue = await api.getJiraIssue(key);
+      setTitle(issue.summary);
+      setIssueType(issue.issueType);
+      setAssignee(issue.assignee ?? "");
+      setFetchedStatus({ label: issue.status, category: issue.statusCategory });
+      setStatusIndex(STATUS_PRESETS.length);
+      setFetchedUrl(issue.url);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not fetch issue from Jira"));
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -49,7 +86,10 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
       x: -appState.scrollX + appState.width / 2 / zoom - 160,
       y: -appState.scrollY + appState.height / 2 / zoom - 60,
     };
-    const preset = STATUS_PRESETS[statusIndex];
+    const preset =
+      statusIndex === STATUS_PRESETS.length && fetchedStatus
+        ? { label: fetchedStatus.label, category: fetchedStatus.category }
+        : STATUS_PRESETS[statusIndex];
     const groupId = `jira-${key}-${Math.random().toString(36).slice(2, 10)}`;
     const elements = buildJiraCardElements(
       {
@@ -96,6 +136,16 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
           value={reference}
           onChange={(e) => setReference(e.target.value)}
         />
+        {connected ? (
+          <button
+            type="button"
+            className="ui-button-secondary w-full px-4 disabled:opacity-50"
+            disabled={!key || fetching}
+            onClick={() => void handleFetch()}
+          >
+            {fetching ? "Fetching..." : "Fetch from Jira"}
+          </button>
+        ) : null}
         <input
           className={fieldClass}
           placeholder="Summary"
@@ -124,6 +174,11 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
                 {s.label}
               </option>
             ))}
+            {fetchedStatus ? (
+              <option value={STATUS_PRESETS.length}>
+                {fetchedStatus.label}
+              </option>
+            ) : null}
           </select>
         </div>
         <input

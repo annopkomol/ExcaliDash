@@ -79,13 +79,15 @@ type BuildRemoteSceneUpdateInput = {
 };
 
 /**
- * Default style for newly drawn elements: Helvetica (FONT_FAMILY.Helvetica = 2, a
- * system sans-serif stack, nothing to download) and roughness 0 ("Architect" sloppiness) instead of Excalidraw's hand-drawn look.
+ * Default style for newly drawn elements: Nunito (FONT_FAMILY.Nunito = 6),
+ * roughness 0 ("Architect" sloppiness) instead of Excalidraw's hand-drawn look,
+ * and a filled triangle arrowhead at the end of arrows.
  * Used until a drawing has saved its own choice (see getPersistedAppState).
  */
 export const DEFAULT_ITEM_STYLE = {
-  currentItemFontFamily: 2,
+  currentItemFontFamily: 6,
   currentItemRoughness: 0,
+  currentItemEndArrowhead: "triangle",
 } as const;
 
 export const getPersistedAppState = (
@@ -102,6 +104,8 @@ export const getPersistedAppState = (
     base.currentItemFontFamily = appState.currentItemFontFamily;
   if (appState?.currentItemRoughness != null)
     base.currentItemRoughness = appState.currentItemRoughness;
+  if (appState?.currentItemEndArrowhead !== undefined)
+    base.currentItemEndArrowhead = appState.currentItemEndArrowhead;
   return base;
 };
 

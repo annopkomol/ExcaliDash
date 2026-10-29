@@ -21,7 +21,7 @@ export const DEFAULT_STICKY_COLOR = STICKY_COLORS[0].value;
 
 /** Text defaults applied so the typed note text is centred and readable. */
 export const STICKY_TEXT_STATE = {
-  currentItemFontFamily: 2,
+  currentItemFontFamily: 6,
   currentItemFontSize: 24,
   currentItemTextAlign: "center",
   currentItemStrokeColor: "#1e1e1e",

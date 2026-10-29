@@ -22,6 +22,8 @@ import { getJiraConnection, getJiraIssue } from "../../api";
 import { parseJiraGroupId, refreshJiraCards } from "../../utils/jiraCard";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
 import { StickyNoteMenu } from "../../components/StickyNoteMenu";
+import { StickerPicker } from "../../components/StickerPicker";
+import { buildSticker, type Sticker } from "../../utils/stickers";
 import {
   DEFAULT_STICKY_COLOR,
   STICKY_TEXT_STATE,
@@ -194,6 +196,27 @@ export const EditorView: React.FC<EditorViewProps> = ({
             }),
           );
       }, 50);
+    },
+    [excalidrawApi, canEdit, isHistoryOpen],
+  );
+
+  const addSticker = React.useCallback(
+    async (sticker: Sticker) => {
+      const api = excalidrawApi as any;
+      if (!api || !canEdit || isHistoryOpen) return;
+      const appState = api.getAppState();
+      const zoom = appState.zoom?.value || 1;
+      const center = {
+        x: -appState.scrollX + appState.width / 2 / zoom,
+        y: -appState.scrollY + appState.height / 2 / zoom,
+      };
+      const { element, file } = await buildSticker(sticker, center);
+      api.addFiles([file]);
+      api.updateScene({
+        elements: [...api.getSceneElements(), element],
+        appState: { selectedElementIds: { [element.id]: true } },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
     },
     [excalidrawApi, canEdit, isHistoryOpen],
   );
@@ -586,6 +609,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
                   disabled={!canEdit}
                   onAdd={addStickyNote}
                 />
+              </MainMenu.ItemCustom>
+              <MainMenu.ItemCustom>
+                <StickerPicker disabled={!canEdit} onAdd={addSticker} />
               </MainMenu.ItemCustom>
               <MainMenu.Item onSelect={() => setIsJiraOpen(true)}>
                 Add Jira card

@@ -1,6 +1,8 @@
 import express from "express";
 import {
   buildShareLinkToken,
+  canViewDrawing,
+  getDrawingAccess,
   hashShareLinkToken,
   normalizeDrawingPermission,
 } from "../../authz/sharing";
@@ -20,6 +22,9 @@ export const registerDrawingSharingRoutes = (
     resolveDefaultTtlMs,
     resolveMaxTtlMs,
     revalidateDrawingAccess,
+    optionalAuth,
+    getRequestPrincipal,
+    respondWithAuthErrorIfPresent,
   } = context;
 
   // Kick any connected collaborators whose access to this drawing just changed.
@@ -66,6 +71,48 @@ export const registerDrawingSharingRoutes = (
         take: 10,
       });
 
+      return res.json({ users });
+    }),
+  );
+
+  // Anyone who can view the drawing: names of the owner and direct grantees,
+  // used for @mention autocomplete. Names only, no emails.
+  app.get(
+    "/drawings/:id/mentionable-users",
+    optionalAuth,
+    asyncHandler(async (req, res) => {
+      const principal = await getRequestPrincipal(req);
+      const { id } = req.params;
+      const access = await getDrawingAccess({
+        prisma,
+        principal,
+        drawingId: id,
+      });
+      if (!canViewDrawing(access)) {
+        if (respondWithAuthErrorIfPresent(req, res)) return;
+        return res.status(404).json({ error: "Drawing not found" });
+      }
+
+      const [drawing, grants] = await Promise.all([
+        prisma.drawing.findUnique({
+          where: { id },
+          select: { user: { select: { id: true, name: true, isActive: true } } },
+        }),
+        prisma.drawingPermission.findMany({
+          where: { drawingId: id },
+          select: {
+            granteeUser: { select: { id: true, name: true, isActive: true } },
+          },
+        }),
+      ]);
+
+      const seen = new Set<string>();
+      const users: { id: string; name: string }[] = [];
+      for (const u of [drawing?.user, ...grants.map((g) => g.granteeUser)]) {
+        if (!u || !u.isActive || !u.name || seen.has(u.id)) continue;
+        seen.add(u.id);
+        users.push({ id: u.id, name: u.name });
+      }
       return res.json({ users });
     }),
   );

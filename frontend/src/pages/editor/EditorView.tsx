@@ -10,6 +10,7 @@ import {
   Download,
   History,
   Loader2,
+  RefreshCw,
   Share2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -152,6 +153,23 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
+  const [jiraRefreshing, setJiraRefreshing] = React.useState(false);
+  const [jiraBadge, setJiraBadge] = React.useState<{
+    groupId: string;
+    left: number;
+    top: number;
+  } | null>(null);
+
+  const refreshGroups = async (cardGroups: Set<string>) => {
+    if (!excalidrawApi || jiraRefreshing) return;
+    setJiraRefreshing(true);
+    try {
+      await runJiraRefresh(cardGroups);
+    } finally {
+      setJiraRefreshing(false);
+    }
+  };
+
   const handleRefreshJira = async () => {
     if (!excalidrawApi) return;
     const all: readonly any[] = excalidrawApi.getSceneElements();
@@ -179,6 +197,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
       toast.info("No Jira cards to refresh");
       return;
     }
+    await refreshGroups(cardGroups);
+  };
+
+  const runJiraRefresh = async (cardGroups: Set<string>) => {
     try {
       const connection = await getJiraConnection();
       if (!connection.connected) {
@@ -220,6 +242,39 @@ export const EditorView: React.FC<EditorViewProps> = ({
       .map((el: any) => el?.id)
       .join(",");
     setAnchorIds((prev) => (prev === ids ? prev : ids));
+    const selectedGroupId = Object.keys(appState?.selectedGroupIds ?? {}).find(
+      (gid) => parseJiraGroupId(gid) && appState.selectedGroupIds[gid],
+    );
+    let badge: typeof jiraBadge = null;
+    if (
+      selectedGroupId &&
+      !appState.selectedElementsAreBeingDragged &&
+      !appState.editingGroupId
+    ) {
+      let right = -Infinity;
+      let top = Infinity;
+      for (const el of elements) {
+        if (!el.isDeleted && el.groupIds?.includes(selectedGroupId)) {
+          right = Math.max(right, el.x + el.width);
+          top = Math.min(top, el.y);
+        }
+      }
+      if (Number.isFinite(right)) {
+        const zoom = appState.zoom?.value ?? 1;
+        badge = {
+          groupId: selectedGroupId,
+          left: Math.round((right + appState.scrollX) * zoom),
+          top: Math.round((top + appState.scrollY) * zoom),
+        };
+      }
+    }
+    setJiraBadge((prev) =>
+      prev?.groupId === badge?.groupId &&
+      prev?.left === badge?.left &&
+      prev?.top === badge?.top
+        ? prev
+        : badge,
+    );
     onCanvasChange(elements, appState, files);
   };
 
@@ -478,6 +533,23 @@ export const EditorView: React.FC<EditorViewProps> = ({
             </span>
           </div>
         )}
+        {jiraBadge && canEdit ? (
+          <button
+            type="button"
+            data-testid="jira-refresh-button"
+            title="Refresh from Jira"
+            aria-label="Refresh Jira card"
+            disabled={jiraRefreshing}
+            onClick={() => void refreshGroups(new Set([jiraBadge.groupId]))}
+            className="absolute z-[6] flex h-7 w-7 -translate-x-full -translate-y-[calc(100%+6px)] items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow hover:bg-slate-100 disabled:opacity-60 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
+            style={{ left: jiraBadge.left, top: jiraBadge.top }}
+          >
+            <RefreshCw
+              size={14}
+              className={jiraRefreshing ? "animate-spin" : ""}
+            />
+          </button>
+        ) : null}
         {anchorIds && excalidrawApi ? (
           <ArrowAnchorOverlay api={excalidrawApi} />
         ) : null}

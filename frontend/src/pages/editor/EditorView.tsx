@@ -42,7 +42,8 @@ import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
 import { ArrowAnchorOverlay } from "./ArrowAnchorOverlay";
-import { snapArrowToAnchors } from "./arrowSnap";
+import { reattachAnchoredArrows, snapArrowToAnchors } from "./arrowSnap";
+import { useArrowMagnet } from "./useArrowMagnet";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 
 interface Peer extends UserIdentity {
@@ -386,18 +387,39 @@ export const EditorView: React.FC<EditorViewProps> = ({
       );
     }
   };
-  // Ids of shapes an arrow end is about to bind to; only re-render when they change.
-  const [anchorIds, setAnchorIds] = React.useState("");
+  const magnetPreview = useArrowMagnet(excalidrawApi, canEdit && !isHistoryOpen);
+  const reattachingRef = React.useRef(false);
 
   const handleChange = (
     elements: readonly any[],
     appState: any,
     files?: Record<string, any>,
   ) => {
-    const ids = (appState?.suggestedBindings ?? [])
-      .map((el: any) => el?.id)
-      .join(",");
-    setAnchorIds((prev) => (prev === ids ? prev : ids));
+    // Keep anchored arrow ends on their anchor when the shapes they attach to change.
+    if (excalidrawApi && canEdit && !isHistoryOpen && !reattachingRef.current) {
+      const skip = new Set<string>();
+      if (appState.newElement?.id) skip.add(appState.newElement.id);
+      if (appState.cursorButton === "down") {
+        for (const [eid, on] of Object.entries(appState.selectedElementIds ?? {})) {
+          if (on) skip.add(eid);
+        }
+      }
+      const fixed = reattachAnchoredArrows(elements, skip);
+      if (fixed.length) {
+        const byId = new Map(fixed.map((el) => [el.id, el]));
+        reattachingRef.current = true;
+        try {
+          excalidrawApi.updateScene({
+            elements: excalidrawApi
+              .getSceneElementsIncludingDeleted()
+              .map((el: any) => byId.get(el.id) ?? el),
+          });
+        } finally {
+          reattachingRef.current = false;
+        }
+        return;
+      }
+    }
     const selectedGroupId = Object.keys(appState?.selectedGroupIds ?? {}).find(
       (gid) => parseJiraGroupId(gid) && appState.selectedGroupIds[gid],
     );
@@ -434,7 +456,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
     onCanvasChange(elements, appState, files);
   };
 
-  // Miro-style: after an arrow end binds to a shape, snap it to the nearest anchor.
+  // Miro-style: after an arrow end binds to a shape, attach it to the nearest anchor.
   const snapSelectedArrows = () => {
     const api = excalidrawApi;
     if (!api || !canEdit) return;
@@ -720,8 +742,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
             />
           </button>
         ) : null}
-        {anchorIds && excalidrawApi ? (
-          <ArrowAnchorOverlay api={excalidrawApi} />
+        {magnetPreview && excalidrawApi ? (
+          <ArrowAnchorOverlay api={excalidrawApi} preview={magnetPreview} />
         ) : null}
         {historyPreview ? (
           <HistoryPreviewCanvas

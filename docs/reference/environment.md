@@ -16,6 +16,7 @@ Common settings are listed below. See `backend/src/config/registry/` for all var
 | `NODE_ENV`     | `development` | Enables production validation and hardening when set to `production` |
 | `FRONTEND_URL` | unset         | Comma-separated allowed frontend origins                             |
 | `TRUST_PROXY`  | `false`       | Express proxy trust; use a positive hop count behind a trusted proxy |
+| `MCP_ENABLED`  | `true`        | Serve the `/mcp` endpoint for Claude Code and other MCP clients      |
 
 ## Data
 

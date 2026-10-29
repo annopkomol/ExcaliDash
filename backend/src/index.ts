@@ -31,6 +31,7 @@ import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
 import { registerJiraRoutes } from "./routes/jira";
+import { registerMcpRoutes } from "./mcp/routes";
 import { registerFileRoutes } from "./routes/files";
 import { registerStorageRoutes } from "./routes/storage";
 import { prisma, configureSqlite } from "./db/prisma";
@@ -314,6 +315,8 @@ const generalRateLimiter = rateLimit({
   validate: { trustProxy: false, xForwardedForHeader: false },
 });
 app.use(generalRateLimiter);
+// Before CSRF: MCP clients are non-browser and authenticate with API keys.
+registerMcpRoutes(app);
 registerCsrfProtection({
   app,
   isAllowedOrigin,

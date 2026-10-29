@@ -88,6 +88,7 @@ interface Config {
   enableAuditLogging: boolean;
   enforceHttpsRedirect: boolean;
   disableOnboardingGate: boolean;
+  mcpEnabled: boolean;
   bootstrapSetupCodeTtlMs: number;
   bootstrapSetupCodeMaxAttempts: number;
   passwordPolicy: PasswordPolicyConfig;
@@ -114,7 +115,10 @@ interface OidcConfig {
   redirectUri: string | null;
   idTokenSignedResponseAlg: string | null;
   tokenEndpointAuthMethod:
-    "none" | "client_secret_basic" | "client_secret_post" | null;
+    | "none"
+    | "client_secret_basic"
+    | "client_secret_post"
+    | null;
   scopes: string;
   emailClaim: string;
   emailVerifiedClaim: string;
@@ -396,6 +400,7 @@ export const config: Config = {
   enableAuditLogging: readBoolean("ENABLE_AUDIT_LOGGING", false),
   enforceHttpsRedirect: readBoolean("ENFORCE_HTTPS_REDIRECT", true),
   disableOnboardingGate: readRaw("DISABLE_ONBOARDING_GATE") === "true",
+  mcpEnabled: readBoolean("MCP_ENABLED", true),
   bootstrapSetupCodeTtlMs: readNumber("BOOTSTRAP_SETUP_CODE_TTL_MS", 900000),
   bootstrapSetupCodeMaxAttempts: readNumber(
     "BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS",

@@ -39,6 +39,12 @@ const env = {
   VITE_DEV_BACKEND_URL: `http://localhost:${backendPort}`,
 };
 
+// Ambient AWS_* credentials (common in cloud sessions) make the backend refuse
+// to start with a "half-configured" S3 setup; local dev uses database storage.
+for (const key of Object.keys(env)) {
+  if (key.startsWith("AWS_")) delete env[key];
+}
+
 const children = [];
 const run = (name, cwd) => {
   const child = spawn("npm", ["run", "dev"], {

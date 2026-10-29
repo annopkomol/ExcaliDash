@@ -1,7 +1,7 @@
 /**
- * Miro-style arrow snapping. Arrow ends attach to the side-midpoint anchors
- * (top, right, bottom, left) of shapes and stay on that anchor when the shape
- * moves. Only standard Excalidraw arrow fields are written: points and
+ * Miro-style arrow snapping. Arrow ends slide along a shape's outline, lock
+ * onto the side-midpoint anchors (top, right, bottom, left) when close to one,
+ * and stay on that spot of the outline when the shape moves. Only standard Excalidraw arrow fields are written: points and
  * start/endBinding, where the anchor is stored as the binding's `fixedPoint`
  * (the same field Excalidraw uses for elbow arrows and, in newer versions, for
  * every arrow), so scenes stay valid when pasted into excalidraw.com.
@@ -54,44 +54,6 @@ export const getElementAnchors = (el: Box): Anchor[] => {
   });
 };
 
-/** Global position an arrow end attached to `side` should sit at. */
-export const anchorEndpoint = (
-  el: Box,
-  side: number,
-  gap = ANCHOR_GAP,
-): Point => {
-  const { point, normal } = getElementAnchors(el)[side];
-  return [point[0] + normal[0] * gap, point[1] + normal[1] * gap];
-};
-
-// Excalidraw rejects an exact 0.5 ratio (normalizeFixedPoint), so mirror it.
-const HALF = 0.5001;
-
-/** Binding `fixedPoint` (ratio of the unrotated box) for an end attached to `side`. */
-export const sideFixedPoint = (el: Box, side: number, gap: number): Point => {
-  const gx = el.width ? gap / el.width : 0;
-  const gy = el.height ? gap / el.height : 0;
-  return [
-    [HALF, -gy],
-    [1 + gx, HALF],
-    [HALF, 1 + gy],
-    [-gx, HALF],
-  ][side] as Point;
-};
-
-/** Which side anchor a fixedPoint written by `sideFixedPoint` refers to, if any. */
-export const sideOfFixedPoint = (fp: unknown): number | null => {
-  if (!Array.isArray(fp) || fp.length !== 2) return null;
-  const [fx, fy] = fp as number[];
-  if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
-  const mid = (v: number) => Math.abs(v - 0.5) < 0.001;
-  if (mid(fx) && fy <= 0) return 0;
-  if (mid(fy) && fx >= 1) return 1;
-  if (mid(fx) && fy >= 1) return 2;
-  if (mid(fy) && fx <= 0) return 3;
-  return null;
-};
-
 /** Global position for a binding fixedPoint, as Excalidraw computes it for elbow arrows. */
 const fixedPointToGlobal = (el: Box, fp: Point): Point => {
   const [cx, cy] = center(el);
@@ -103,13 +65,121 @@ const fixedPointToGlobal = (el: Box, fp: Point): Point => {
   return [cx + rx, cy + ry];
 };
 
-/** The side whose midpoint a point inside (or near) the element should attach to. */
-export const nearestSide = (el: Box, p: Point): number => {
-  const [lx, ly] = toLocal(el, p);
-  const nx = el.width ? lx / (el.width / 2) : 0;
-  const ny = el.height ? ly / (el.height / 2) : 0;
-  if (Math.abs(nx) >= Math.abs(ny)) return nx >= 0 ? 1 : 3;
-  return ny >= 0 ? 2 : 0;
+// Excalidraw rejects an exact 0.5 ratio (normalizeFixedPoint), so mirror it.
+const avoidHalf = (v: number) => (Math.abs(v - 0.5) < 0.0001 ? 0.5001 : v);
+
+/** Binding `fixedPoint` (ratio of the unrotated box) for a global point. */
+const globalToFixedPoint = (el: Box, g: Point): Point => {
+  const [lx, ly] = toLocal(el, g);
+  return [
+    avoidHalf(el.width ? 0.5 + lx / el.width : 0.5),
+    avoidHalf(el.height ? 0.5 + ly / el.height : 0.5),
+  ];
+};
+
+const normalize = ([x, y]: Point): Point => {
+  const len = Math.hypot(x, y) || 1;
+  return [x / len, y / len];
+};
+
+/** Nearest point on the shape outline (unrotated frame, relative to center) and its outward normal. */
+const localOutlinePoint = (
+  type: string,
+  a: number,
+  b: number,
+  [lx, ly]: Point,
+): Anchor => {
+  if (type === "ellipse" && a > 0 && b > 0) {
+    const t = Math.atan2(ly / b, lx / a);
+    const [c, s] = [Math.cos(t), Math.sin(t)];
+    return { point: [a * c, b * s], normal: normalize([c / a, s / b]) };
+  }
+  if (type === "diamond" && a > 0 && b > 0) {
+    const sx = lx >= 0 ? 1 : -1;
+    const sy = ly >= 0 ? 1 : -1;
+    // Edge of this quadrant, from (0, sy*b) to (sx*a, 0).
+    const ex = sx * a;
+    const ey = -sy * b;
+    const t = Math.min(
+      1,
+      Math.max(0, (lx * ex + (ly - sy * b) * ey) / (ex * ex + ey * ey)),
+    );
+    return {
+      point: [t * ex, sy * b + t * ey],
+      normal: normalize([sx * b, sy * a]),
+    };
+  }
+  // Rectangles and everything else bind to their box.
+  const outside = Math.abs(lx) > a || Math.abs(ly) > b;
+  if (outside) {
+    const px = Math.max(-a, Math.min(a, lx));
+    const py = Math.max(-b, Math.min(b, ly));
+    const horizontal = Math.abs(lx) - a > Math.abs(ly) - b;
+    return {
+      point: [px, py],
+      normal: horizontal ? [Math.sign(lx) || 1, 0] : [0, Math.sign(ly) || 1],
+    };
+  }
+  if (a - Math.abs(lx) < b - Math.abs(ly)) {
+    const sx = lx >= 0 ? 1 : -1;
+    return { point: [sx * a, ly], normal: [sx, 0] };
+  }
+  const sy = ly >= 0 ? 1 : -1;
+  return { point: [lx, sy * b], normal: [0, sy] };
+};
+
+/** Nearest point on a (possibly rotated) element's outline, with its outward normal. */
+export const outlinePoint = (el: Box & { type?: string }, p: Point): Anchor => {
+  const angle = el.angle ?? 0;
+  const [cx, cy] = center(el);
+  const local = localOutlinePoint(
+    el.type ?? "rectangle",
+    el.width / 2,
+    el.height / 2,
+    toLocal(el, p),
+  );
+  const [ox, oy] = rotate(local.point, angle);
+  return { point: [cx + ox, cy + oy], normal: rotate(local.normal, angle) };
+};
+
+/**
+ * Where an arrow end near `p` attaches on the element: the nearest outline
+ * point, or a side-midpoint anchor (`side` 0-3) when within `lockRadius` of it.
+ */
+export const attachPoint = (
+  el: Box & { type?: string },
+  p: Point,
+  lockRadius: number,
+  gap = ANCHOR_GAP,
+): { side: number | null; target: Point } => {
+  const edge = outlinePoint(el, p);
+  let best: { side: number | null; anchor: Anchor; dist: number } = {
+    side: null,
+    anchor: edge,
+    dist: lockRadius,
+  };
+  getElementAnchors(el).forEach((anchor, side) => {
+    const dist = Math.hypot(
+      anchor.point[0] - edge.point[0],
+      anchor.point[1] - edge.point[1],
+    );
+    if (dist <= best.dist) best = { side, anchor, dist };
+  });
+  const { point, normal } = best.anchor;
+  return {
+    side: best.side,
+    target: [point[0] + normal[0] * gap, point[1] + normal[1] * gap],
+  };
+};
+
+/** Whether a binding fixedPoint sits on the element outline, i.e. was attached by us. */
+const isEdgeFixedPoint = (el: Box & { type?: string }, fp: unknown) => {
+  if (!Array.isArray(fp) || fp.length !== 2) return false;
+  if (!fp.every((v) => Number.isFinite(v))) return false;
+  const g = fixedPointToGlobal(el, fp as Point);
+  const { point } = outlinePoint(el, g);
+  const tolerance = Math.max(8, 0.1 * Math.min(el.width, el.height));
+  return Math.hypot(g[0] - point[0], g[1] - point[1]) <= tolerance;
 };
 
 const BINDABLE = new Set([
@@ -130,17 +200,23 @@ const distanceOutside = (el: Box, p: Point) => {
   return Math.hypot(dx, dy);
 };
 
-export type MagnetHit = { element: any; side: number; target: Point };
+export type MagnetHit = {
+  element: any;
+  side: number | null;
+  target: Point;
+};
 
 /**
- * The shape and anchor an arrow end at `p` should snap to: any bindable shape
- * the pointer is over, or within `margin` of. Grouped shapes (e.g. Jira cards)
- * act as one object and snap to their largest member's anchors.
+ * Where an arrow end at `p` should snap to: the outline of any bindable shape
+ * the pointer is over or within `margin` of, locking onto a side midpoint
+ * within `lockRadius`. Grouped shapes (e.g. Jira cards) act as one object and
+ * snap to their largest member.
  */
 export const findMagnetTarget = (
   elements: readonly any[],
   p: Point,
   margin: number,
+  lockRadius: number,
   options: { excludeIds?: Set<string>; editingGroupId?: string | null } = {},
 ): MagnetHit | null => {
   const candidates: Array<{ el: any; dist: number }> = [];
@@ -180,8 +256,7 @@ export const findMagnetTarget = (
       }
     }
   }
-  const side = nearestSide(element, p);
-  return { element, side, target: anchorEndpoint(element, side) };
+  return { element, ...attachPoint(element, p, lockRadius) };
 };
 
 type Binding = {
@@ -237,22 +312,16 @@ const endpointOf = (arrow: any, end: "start" | "end"): Point => {
   return [arrow.x + p[0], arrow.y + p[1]];
 };
 
-/** Radius around an anchor within which a just-bound arrow end snaps to it on release. */
-const releaseRadius = (el: Box, zoom: number) => {
-  const preferred = Math.max(28 / zoom, 0.25 * Math.min(el.width, el.height));
-  // Never reach past halfway to the next anchor.
-  return Math.min(preferred, 0.4 * Math.hypot(el.width / 2, el.height / 2));
-};
-
 /**
- * After a pointer-up: attach each bound end of the arrow that sits near an
- * anchor (or already carries one) to that anchor. Returns the updated arrow,
- * or null if nothing changed.
+ * After a pointer-up: attach each bound end of the arrow to the nearest point
+ * of its shape's outline (or a side midpoint within `lockRadius`) and record
+ * it as the binding's fixedPoint. Returns the updated arrow, or null if
+ * nothing changed.
  */
 export const snapArrowToAnchors = (
   arrow: any,
   elementsById: Map<string, any>,
-  zoom = 1,
+  lockRadius: number,
 ): any | null => {
   if (!isPlainArrow(arrow)) return null;
   let next = arrow;
@@ -262,41 +331,31 @@ export const snapArrowToAnchors = (
     const target = binding && elementsById.get(binding.elementId);
     if (!binding || !target || target.isDeleted) continue;
     const current = endpointOf(next, end);
-    let side = sideOfFixedPoint(binding.fixedPoint);
-    if (side === null) {
-      const nearest = nearestSide(target, current);
-      const { point } = getElementAnchors(target)[nearest];
-      if (
-        Math.hypot(current[0] - point[0], current[1] - point[1]) >
-        releaseRadius(target, zoom)
-      ) {
+    if (
+      binding.focus === 0 &&
+      binding.fixedPoint &&
+      isEdgeFixedPoint(target, binding.fixedPoint)
+    ) {
+      const want = fixedPointToGlobal(target, binding.fixedPoint);
+      if (Math.hypot(want[0] - current[0], want[1] - current[1]) <= 0.5) {
         continue;
       }
-      side = nearest;
     }
-    const gap = ANCHOR_GAP;
-    const fixedPoint = sideFixedPoint(target, side, gap);
-    const snapped = fixedPointToGlobal(target, fixedPoint);
-    const moved =
-      Math.hypot(snapped[0] - current[0], snapped[1] - current[1]) > 0.01;
-    const sameBinding =
-      binding.focus === 0 &&
-      binding.gap === gap &&
-      sideOfFixedPoint(binding.fixedPoint) === side &&
-      binding.fixedPoint?.[0] === fixedPoint[0] &&
-      binding.fixedPoint?.[1] === fixedPoint[1];
-    if (!moved && sameBinding) continue;
+    const fixedPoint = globalToFixedPoint(
+      target,
+      attachPoint(target, current, lockRadius).target,
+    );
     next = {
       ...next,
-      ...withEndpoint(next, end, snapped),
-      [key]: { ...binding, focus: 0, gap, fixedPoint },
+      ...withEndpoint(next, end, fixedPointToGlobal(target, fixedPoint)),
+      [key]: { ...binding, focus: 0, gap: ANCHOR_GAP, fixedPoint },
     };
   }
   return next === arrow ? null : bumpVersion(next, arrow);
 };
 
 /**
- * Keep anchored arrow ends on their anchor after the shapes they attach to
+ * Keep attached arrow ends on their spot of the outline after the shapes they attach to
  * moved, resized or rotated (Excalidraw 0.18 only does this for elbow arrows).
  * Returns the arrows that needed fixing.
  */
@@ -308,16 +367,16 @@ export const reattachAnchoredArrows = (
   const fixed: any[] = [];
   for (const arrow of elements) {
     if (!isPlainArrow(arrow) || skipIds.has(arrow.id)) continue;
-    const anchored = (["start", "end"] as const).filter(
-      (end) => sideOfFixedPoint(arrow[`${end}Binding`]?.fixedPoint) !== null,
-    );
-    if (!anchored.length) continue;
+    if (!arrow.startBinding?.fixedPoint && !arrow.endBinding?.fixedPoint) {
+      continue;
+    }
     byId ??= new Map(elements.map((el) => [el.id, el]));
     let next = arrow;
-    for (const end of anchored) {
+    for (const end of ["start", "end"] as const) {
       const binding = next[`${end}Binding`];
-      const target = byId.get(binding.elementId);
+      const target = binding?.fixedPoint && byId.get(binding.elementId);
       if (!target || target.isDeleted) continue;
+      if (!isEdgeFixedPoint(target, binding.fixedPoint)) continue;
       const want = fixedPointToGlobal(target, binding.fixedPoint);
       const have = endpointOf(next, end);
       if (Math.hypot(want[0] - have[0], want[1] - have[1]) <= 0.5) continue;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  findSnapTarget,
+  findMagnetTarget,
+  reattachAnchoredArrows,
+  sideOfFixedPoint,
   snapArrowToAnchors,
 } from "../src/pages/editor/arrowSnap";
 
@@ -11,87 +13,116 @@ const rect = {
   y: 100,
   width: 200,
   height: 100,
+  angle: 0,
+  groupIds: [],
 };
 
-describe("arrowSnap", () => {
-  it("snaps a nearby point to the side midpoint offset by the gap", () => {
-    expect(findSnapTarget(rect, [210, 96], 5)).toEqual([200, 95]);
+const arrowTo = (end: [number, number], endBinding: any) => ({
+  type: "arrow",
+  id: "a",
+  x: 0,
+  y: 0,
+  width: end[0],
+  height: end[1],
+  version: 1,
+  points: [
+    [0, 0],
+    [end[0], end[1]],
+  ],
+  startBinding: null,
+  endBinding,
+});
+
+describe("findMagnetTarget", () => {
+  it("snaps a pointer anywhere over a shape to the nearest side midpoint", () => {
+    const hit = findMagnetTarget([rect], [130, 160], 24);
+    expect(hit?.element.id).toBe("r");
+    expect(hit?.side).toBe(3);
+    expect(hit?.target).toEqual([96, 150]);
   });
 
-  it("does not snap a point far from every anchor", () => {
-    expect(findSnapTarget(rect, [150, 100], 5)).toBeNull();
+  it("snaps a pointer just outside a shape, but not far away", () => {
+    expect(findMagnetTarget([rect], [200, 85], 24)?.side).toBe(0);
+    expect(findMagnetTarget([rect], [200, 40], 24)).toBeNull();
   });
 
-  it("snaps the bound end of an arrow and keeps standard bindings", () => {
-    const arrow = {
-      type: "arrow",
-      id: "a",
-      x: 0,
-      y: 0,
-      width: 195,
-      height: 95,
-      version: 1,
-      points: [
-        [0, 0],
-        [195, 95],
-      ],
-      startBinding: null,
-      endBinding: { elementId: "r", focus: 0.3, gap: 5 },
+  it("skips excluded shapes and prefers the shape under the pointer", () => {
+    const top = { ...rect, id: "t", x: 150, y: 120, width: 40, height: 40 };
+    expect(findMagnetTarget([rect, top], [170, 140], 24)?.element.id).toBe("t");
+    expect(
+      findMagnetTarget([rect, top], [170, 140], 24, {
+        excludeIds: new Set(["t"]),
+      })?.element.id,
+    ).toBe("r");
+  });
+
+  it("treats a group as one object and snaps to its largest member", () => {
+    const card = { ...rect, groupIds: ["g"] };
+    const pill = {
+      ...rect,
+      id: "p",
+      x: 110,
+      y: 170,
+      width: 60,
+      height: 20,
+      groupIds: ["g"],
     };
-    const out = snapArrowToAnchors(arrow, new Map([["r", rect]]));
-    expect(out.points[1]).toEqual([200, 95]);
-    expect(out.endBinding).toEqual({ elementId: "r", focus: 0, gap: 5 });
+    expect(findMagnetTarget([card, pill], [120, 180], 24)?.element.id).toBe(
+      "r",
+    );
+  });
+});
+
+describe("snapArrowToAnchors", () => {
+  it("attaches a bound end near an anchor and records the anchor as fixedPoint", () => {
+    const out = snapArrowToAnchors(
+      arrowTo([95, 140], { elementId: "r", focus: 0.3, gap: 5 }),
+      new Map([["r", rect]]),
+    );
+    expect(out.points[1][0]).toBeCloseTo(96);
+    expect(out.points[1][1]).toBeCloseTo(150, 1);
+    expect(out.endBinding.focus).toBe(0);
+    expect(sideOfFixedPoint(out.endBinding.fixedPoint)).toBe(3);
     expect(out.version).toBe(2);
   });
 
-  it("moves the origin when snapping the start of an arrow", () => {
-    const arrow = {
-      type: "arrow",
-      id: "a",
-      x: 205,
-      y: 90,
-      width: 0,
-      height: 100,
-      version: 1,
-      points: [
-        [0, 0],
-        [0, -100],
-      ],
-      startBinding: { elementId: "r", focus: 0, gap: 5 },
-      endBinding: null,
-    };
-    const out = snapArrowToAnchors(arrow, new Map([["r", rect]]));
-    expect([out.x, out.y]).toEqual([200, 95]);
-    expect(out.points).toEqual([
-      [0, 0],
-      [5, -105],
-    ]);
-  });
-
-  it("ignores elbow arrows and unbound arrows", () => {
-    const base = {
-      type: "arrow",
-      id: "a",
-      x: 0,
-      y: 0,
-      version: 1,
-      points: [
-        [0, 0],
-        [1, 1],
-      ],
-      startBinding: null,
-      endBinding: null,
-    };
-    expect(snapArrowToAnchors(base, new Map())).toBeNull();
+  it("leaves a bound end far from every anchor alone", () => {
     expect(
       snapArrowToAnchors(
-        {
-          ...base,
-          elbowed: true,
-          endBinding: { elementId: "r", focus: 0, gap: 5 },
-        },
+        arrowTo([110, 97], { elementId: "r", focus: 0.3, gap: 3 }),
         new Map([["r", rect]]),
       ),
     ).toBeNull();
+  });
+
+  it("ignores elbow arrows", () => {
+    const elbow = {
+      ...arrowTo([96, 150], { elementId: "r", focus: 0, gap: 4 }),
+      elbowed: true,
+    };
+    expect(snapArrowToAnchors(elbow, new Map([["r", rect]]))).toBeNull();
+  });
+});
+
+describe("reattachAnchoredArrows", () => {
+  it("moves an anchored end with its shape", () => {
+    const anchored = snapArrowToAnchors(
+      arrowTo([96, 150], { elementId: "r", focus: 0, gap: 4 }),
+      new Map([["r", rect]]),
+    );
+    const moved = { ...rect, x: 300, y: 400 };
+    const [fixed] = reattachAnchoredArrows([moved, anchored]);
+    expect(fixed.points[1][0]).toBeCloseTo(296);
+    expect(fixed.points[1][1]).toBeCloseTo(450, 1);
+    expect(reattachAnchoredArrows([moved, fixed])).toEqual([]);
+  });
+
+  it("does not touch arrows without an anchor", () => {
+    expect(
+      reattachAnchoredArrows([
+        rect,
+        arrowTo([50, 50], { elementId: "r", focus: 0, gap: 4 }),
+      ]),
+    ).toEqual([]);
   });
 });

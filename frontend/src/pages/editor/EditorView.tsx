@@ -27,6 +27,7 @@ import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
 import { ArrowAnchorOverlay } from "./ArrowAnchorOverlay";
 import { snapArrowToAnchors } from "./arrowSnap";
+import { useMentionAutocomplete } from "./useMentionAutocomplete";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -153,6 +154,16 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
+  const peerNames = React.useMemo(
+    () => [me.name, ...peers.map((p) => p.name)],
+    [me.name, peers],
+  );
+  const mentionMenu = useMentionAutocomplete({
+    containerRef: editorContainerRef,
+    drawingId: id,
+    enabled: canEdit && !isHistoryOpen,
+    extraNames: peerNames,
+  });
   const [jiraRefreshing, setJiraRefreshing] = React.useState(false);
   const [jiraBadge, setJiraBadge] = React.useState<{
     groupId: string;
@@ -560,6 +571,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
             langCode={langCode}
           />
         ) : null}
+        {mentionMenu}
         <Toaster position="bottom-center" />
         {isJiraOpen && canEdit ? (
           <JiraCardDialog

@@ -2,15 +2,13 @@ import React from "react";
 import { toast } from "sonner";
 import * as api from "../api";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
-import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import {
   JIRA_TYPES,
-  buildJiraCardElements,
-  createJiraGroupId,
   parseJiraReference,
   type JiraIssueType,
   type JiraStatusCategory,
 } from "../utils/jiraCard";
+import { insertJiraCard } from "../utils/jiraCardInsert";
 
 const STATUS_PRESETS: { label: string; category: JiraStatusCategory }[] = [
   { label: "To Do", category: "todo" },
@@ -47,6 +45,10 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
     label: string;
     category: JiraStatusCategory;
   } | null>(null);
+  const [fetchedAvatar, setFetchedAvatar] = React.useState<{
+    name: string;
+    dataUrl: string;
+  } | null>(null);
   const [fetchedUrl, setFetchedUrl] = React.useState<string | undefined>();
 
   React.useEffect(() => {
@@ -71,6 +73,11 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
       setFetchedStatus({ label: issue.status, category: issue.statusCategory });
       setStatusIndex(STATUS_PRESETS.length);
       setFetchedUrl(issue.url);
+      setFetchedAvatar(
+        issue.assignee && issue.assigneeAvatar
+          ? { name: issue.assignee, dataUrl: issue.assigneeAvatar }
+          : null,
+      );
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not fetch issue from Jira"));
     } finally {
@@ -78,7 +85,7 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
     }
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!excalidrawAPI || !key) return;
     const appState = excalidrawAPI.getAppState();
@@ -91,8 +98,8 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
       statusIndex === STATUS_PRESETS.length && fetchedStatus
         ? { label: fetchedStatus.label, category: fetchedStatus.category }
         : STATUS_PRESETS[statusIndex];
-    const groupId = createJiraGroupId(key);
-    const elements = buildJiraCardElements(
+    await insertJiraCard(
+      excalidrawAPI,
       {
         key,
         title: title.trim() || key,
@@ -103,18 +110,11 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
         assignee,
       },
       origin,
-      groupId,
+      // Only reuse the picture while the assignee is still the fetched person.
+      fetchedAvatar && fetchedAvatar.name === assignee.trim()
+        ? fetchedAvatar.dataUrl
+        : null,
     );
-    excalidrawAPI.updateScene({
-      elements: [...excalidrawAPI.getSceneElements(), ...elements],
-      appState: {
-        selectedElementIds: Object.fromEntries(
-          elements.map((el: any) => [el.id, true]),
-        ),
-        selectedGroupIds: { [groupId]: true },
-      },
-      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-    });
     toast.success(`Added ${key}`);
     onClose();
   };

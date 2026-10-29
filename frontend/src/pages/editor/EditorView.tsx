@@ -17,9 +17,17 @@ import clsx from "clsx";
 import { LanguageSelector } from "../../components/LanguageSelector";
 import { GridStepSelector } from "../../components/GridStepSelector";
 import { toast, Toaster } from "sonner";
-import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import {
+  CaptureUpdateAction,
+  viewportCoordsToSceneCoords,
+} from "@excalidraw/excalidraw";
 import { getJiraConnection, getJiraIssue } from "../../api";
-import { parseJiraGroupId, refreshJiraCards } from "../../utils/jiraCard";
+import {
+  parseJiraGroupId,
+  parseJiraIssueUrl,
+  refreshJiraCards,
+} from "../../utils/jiraCard";
+import { insertJiraCard, prepareAvatar } from "../../utils/jiraCardInsert";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
 import { StickyNoteMenu } from "../../components/StickyNoteMenu";
 import { StickerPicker } from "../../components/StickerPicker";
@@ -162,7 +170,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
-  const [stickyColor, setStickyColor] = React.useState<string>(DEFAULT_STICKY_COLOR);
+  const [stickyColor, setStickyColor] =
+    React.useState<string>(DEFAULT_STICKY_COLOR);
 
   const addStickyNote = React.useCallback(
     (color: string) => {
@@ -232,9 +241,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
       )
         return;
       const target = event.target as HTMLElement | null;
-      if (
-        target?.closest("input, textarea, select, [contenteditable='true']")
-      )
+      if (target?.closest("input, textarea, select, [contenteditable='true']"))
         return;
       event.preventDefault();
       addStickyNote(stickyColor);
@@ -253,6 +260,54 @@ export const EditorView: React.FC<EditorViewProps> = ({
     extraNames: peerNames,
   });
   const [jiraRefreshing, setJiraRefreshing] = React.useState(false);
+  const pointerRef = React.useRef<{ x: number; y: number } | null>(null);
+  const jiraPasteHintShown = React.useRef(false);
+
+  // Pasting a single Jira issue link drops a card at the pointer instead of plain text.
+  const handlePaste = async (data: { text?: string }): Promise<boolean> => {
+    const parsed = parseJiraIssueUrl(data?.text ?? "");
+    if (!parsed || !canEdit || !excalidrawApi) return true;
+    try {
+      const connection = await getJiraConnection();
+      if (!connection.connected) {
+        if (!jiraPasteHintShown.current) {
+          jiraPasteHintShown.current = true;
+          toast.info("Connect Jira in Settings to paste issue links as cards");
+        }
+        return true;
+      }
+      const issue = await getJiraIssue(parsed.key);
+      const appState = excalidrawApi.getAppState();
+      const zoom = appState.zoom?.value || 1;
+      const origin = pointerRef.current
+        ? viewportCoordsToSceneCoords(
+            { clientX: pointerRef.current.x, clientY: pointerRef.current.y },
+            appState,
+          )
+        : {
+            x: -appState.scrollX + appState.width / 2 / zoom - 160,
+            y: -appState.scrollY + appState.height / 2 / zoom - 60,
+          };
+      await insertJiraCard(
+        excalidrawApi,
+        {
+          key: issue.key,
+          title: issue.summary || issue.key,
+          url: issue.url,
+          issueType: issue.issueType,
+          status: issue.status,
+          statusCategory: issue.statusCategory,
+          assignee: issue.assignee ?? undefined,
+        },
+        origin,
+        issue.assigneeAvatar,
+      );
+      return false;
+    } catch {
+      toast.error("Could not load the Jira issue; pasted the link instead");
+      return true;
+    }
+  };
   const [jiraBadge, setJiraBadge] = React.useState<{
     groupId: string;
     left: number;
@@ -314,7 +369,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
       excalidrawApi.getSceneElementsIncludingDeleted(),
       [...cardGroups],
       getJiraIssue,
+      prepareAvatar,
     );
+    if (result.files.length > 0) excalidrawApi.addFiles(result.files);
     if (result.updated > 0) {
       excalidrawApi.updateScene({
         elements: result.elements,
@@ -546,6 +603,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
       <div
         ref={editorContainerRef}
         className="relative w-full flex-1"
+        onPointerMoveCapture={(event) => {
+          pointerRef.current = { x: event.clientX, y: event.clientY };
+        }}
         onDropCapture={(event) => {
           if (isHistoryOpen) {
             event.preventDefault();
@@ -584,6 +644,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
             initialData={initialData}
             onChange={handleChange}
             onPointerUp={handlePointerUp}
+            onPaste={handlePaste}
             onPointerUpdate={onPointerUpdate}
             onLibraryChange={onLibraryChange}
             excalidrawAPI={(api: any) => {

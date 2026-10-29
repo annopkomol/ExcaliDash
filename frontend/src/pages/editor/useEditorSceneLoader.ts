@@ -4,7 +4,11 @@ import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
 import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
-import { getPersistedAppState, hasRenderableElements } from "./shared";
+import {
+  DEFAULT_ITEM_STYLE,
+  getPersistedAppState,
+  hasRenderableElements,
+} from "./shared";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
 
@@ -52,6 +56,7 @@ type SceneLoaderParams = {
 const buildEmptyScene = () => ({
   elements: [],
   appState: {
+    ...DEFAULT_ITEM_STYLE,
     viewBackgroundColor: "#ffffff",
     gridSize: null,
     collaborators: new Map(),
@@ -168,6 +173,7 @@ export const useEditorSceneLoader = ({
         elements.forEach((element: any) => recordElementVersion(element));
         const persistedAppState = getPersistedAppState(data.appState || {});
         const hydratedAppState = {
+          ...DEFAULT_ITEM_STYLE,
           ...persistedAppState,
           collaborators: new Map(),
         };

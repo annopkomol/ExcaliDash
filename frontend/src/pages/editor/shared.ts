@@ -78,6 +78,16 @@ type BuildRemoteSceneUpdateInput = {
   captureUpdate?: CaptureMode;
 };
 
+/**
+ * Default style for newly drawn elements: Nunito (FONT_FAMILY.Nunito = 6) and
+ * roughness 0 ("Architect" sloppiness) instead of Excalidraw's hand-drawn look.
+ * Used until a drawing has saved its own choice (see getPersistedAppState).
+ */
+export const DEFAULT_ITEM_STYLE = {
+  currentItemFontFamily: 6,
+  currentItemRoughness: 0,
+} as const;
+
 export const getPersistedAppState = (
   appState: Record<string, any> | null | undefined,
 ) => {
@@ -88,6 +98,10 @@ export const getPersistedAppState = (
   if (appState?.gridStep != null) base.gridStep = appState.gridStep;
   if (appState?.gridModeEnabled != null)
     base.gridModeEnabled = appState.gridModeEnabled;
+  if (appState?.currentItemFontFamily != null)
+    base.currentItemFontFamily = appState.currentItemFontFamily;
+  if (appState?.currentItemRoughness != null)
+    base.currentItemRoughness = appState.currentItemRoughness;
   return base;
 };
 

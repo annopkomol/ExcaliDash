@@ -143,3 +143,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# One-command local dev stack data (npm run dev:local)
+.dev-local/

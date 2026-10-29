@@ -9,6 +9,8 @@
   "scripts": {
     "install:all": "npm --prefix backend ci && npm --prefix frontend ci && npm --prefix e2e ci",
     "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev:local:fresh": "node scripts/dev-local.mjs --fresh",
     "test": "npm run test:integration && npm run test:e2e && npm run test:e2e:auth",
     "test:integration": "npm --prefix backend test",
     "test:e2e": "npm --prefix e2e test",

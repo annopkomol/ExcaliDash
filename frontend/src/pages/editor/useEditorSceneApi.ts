@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
+import { ensureEditorFontsLoaded } from "./fontLoading";
 import { applyUploadedFileRefs, getFilesDelta } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
@@ -126,6 +127,7 @@ export const useEditorSceneApi = ({
           void scanFileUploads();
         };
       }
+      if (api) void ensureEditorFontsLoaded(api);
       setIsReady(true);
     },
     [

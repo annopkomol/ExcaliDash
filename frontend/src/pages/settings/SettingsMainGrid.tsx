@@ -17,6 +17,7 @@ import {
   SettingsRow,
   settingsPrimaryButtonClass,
 } from "./SettingsRow";
+import type { ThemePreference } from "../../context/ThemeContext";
 import { useLocale } from "../../context/useLocale";
 import {
   MIN_IMAGE_COMPRESSION_THRESHOLD_MB,
@@ -27,7 +28,8 @@ import {
 type SettingsMainGridProps = {
   exportBackup: () => void;
   theme: string;
-  toggleTheme: () => void;
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (preference: ThemePreference) => void;
   imageCompression: boolean;
   toggleImageCompression: () => void;
   imageCompressionThresholdMb: number;
@@ -47,7 +49,8 @@ type SettingsMainGridProps = {
 export const SettingsMainGrid = ({
   exportBackup,
   theme,
-  toggleTheme,
+  themePreference,
+  onThemePreferenceChange,
   imageCompression,
   toggleImageCompression,
   imageCompressionThresholdMb,
@@ -91,11 +94,18 @@ export const SettingsMainGrid = ({
         tileClassName="border-black bg-amber-400 text-black dark:border-neutral-700 dark:bg-amber-400 dark:text-black"
         title="Appearance"
       >
-        <PlayfulSwitch
-          checked={theme === "dark"}
-          onChange={() => toggleTheme()}
-          ariaLabel="Toggle dark mode"
-        />
+        <select
+          aria-label="Appearance"
+          value={themePreference}
+          onChange={(event) =>
+            onThemePreferenceChange(event.target.value as ThemePreference)
+          }
+          className="ui-input text-sm font-bold"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
       </SettingsRow>
 
       <SettingsRow

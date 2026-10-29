@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Fastest path to the editor canvas for visual checks (built for cloud sessions).
 //
-//   node scripts/canvas-shot.mjs [scene.excalidraw] [--out shot.png] [--width 1280] [--height 720]
+//   node scripts/canvas-shot.mjs [scene.excalidraw] [--out shot.png] [--width 1280] [--height 720] [--scheme light|dark]
 //
 // Starts the no-auth dev stack if it is not already running (scripts/dev-local.mjs,
 // ~20s cold, instant when warm), seeds a drawing from a standard .excalidraw file
@@ -224,7 +224,10 @@ const browser = await chromium.launch(
   preinstalled ? { executablePath: preinstalled, args: ["--no-sandbox"] } : {},
 );
 try {
-  const page = await browser.newPage({ viewport });
+  const page = await browser.newPage({
+    viewport,
+    ...(flag("scheme", "") ? { colorScheme: flag("scheme", "") } : {}),
+  });
   const url = `${frontend}/editor/${id}`;
   await page.goto(url);
   await page.locator("canvas.excalidraw__canvas.interactive").waitFor();

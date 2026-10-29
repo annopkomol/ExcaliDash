@@ -44,7 +44,7 @@ const readLegacyPreferences = (): Preferences => {
   const legacy: Preferences = {};
   try {
     const theme = localStorage.getItem("theme");
-    if (theme === "dark" || theme === "light") legacy.theme = theme;
+    if (theme === "dark" || theme === "light" || theme === "system") legacy.theme = theme;
   } catch {
     /* ignore unavailable storage */
   }

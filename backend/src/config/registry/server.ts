@@ -2,6 +2,13 @@ import type { EnvVarSpec } from "./types";
 
 export const serverEnv: readonly EnvVarSpec[] = [
   {
+    name: "MCP_ENABLED",
+    group: "Server",
+    kind: "boolean",
+    default: "true",
+    doc: "Serve the MCP endpoint (/mcp) so Claude Code and other MCP clients can manage drawings with an API key.",
+  },
+  {
     name: "APP_BUILD_LABEL",
     group: "Server",
     kind: "string",

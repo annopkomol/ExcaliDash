@@ -12,6 +12,7 @@ import {
   getCsrfValidationClientIds,
 } from "../security/csrfClient";
 import { isNonBrowserApiKeyBearerRequest } from "../auth/apiKeys";
+import { isInternalMcpRequest } from "../mcp/internal";
 
 const CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
@@ -160,7 +161,7 @@ export const registerCsrfProtection = ({
     if (safeMethods.includes(req.method)) {
       return next();
     }
-    if (isNonBrowserApiKeyBearerRequest(req)) {
+    if (isNonBrowserApiKeyBearerRequest(req) || isInternalMcpRequest(req)) {
       return next();
     }
 

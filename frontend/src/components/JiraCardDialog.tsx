@@ -6,6 +6,7 @@ import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import {
   JIRA_TYPES,
   buildJiraCardElements,
+  createJiraGroupId,
   parseJiraReference,
   type JiraIssueType,
   type JiraStatusCategory,
@@ -90,7 +91,7 @@ export const JiraCardDialog: React.FC<JiraCardDialogProps> = ({
       statusIndex === STATUS_PRESETS.length && fetchedStatus
         ? { label: fetchedStatus.label, category: fetchedStatus.category }
         : STATUS_PRESETS[statusIndex];
-    const groupId = `jira-${key}-${Math.random().toString(36).slice(2, 10)}`;
+    const groupId = createJiraGroupId(key);
     const elements = buildJiraCardElements(
       {
         key,

@@ -13,9 +13,12 @@ import {
   Share2,
 } from "lucide-react";
 import clsx from "clsx";
-import { Toaster } from "sonner";
 import { LanguageSelector } from "../../components/LanguageSelector";
 import { GridStepSelector } from "../../components/GridStepSelector";
+import { toast, Toaster } from "sonner";
+import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import { getJiraConnection, getJiraIssue } from "../../api";
+import { parseJiraGroupId, refreshJiraCards } from "../../utils/jiraCard";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
@@ -149,6 +152,62 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
+  const handleRefreshJira = async () => {
+    if (!excalidrawApi) return;
+    const all: readonly any[] = excalidrawApi.getSceneElements();
+    const selected = Object.keys(
+      excalidrawApi.getAppState().selectedElementIds ?? {},
+    );
+    const selectedGroups = new Set<string>();
+    for (const el of all) {
+      if (selected.includes(el.id)) {
+        for (const gid of el.groupIds ?? []) selectedGroups.add(gid);
+      }
+    }
+    const cardGroups = new Set<string>();
+    for (const el of all) {
+      for (const gid of el.groupIds ?? []) {
+        if (
+          parseJiraGroupId(gid) &&
+          (!selectedGroups.size || selectedGroups.has(gid))
+        ) {
+          cardGroups.add(gid);
+        }
+      }
+    }
+    if (cardGroups.size === 0) {
+      toast.info("No Jira cards to refresh");
+      return;
+    }
+    try {
+      const connection = await getJiraConnection();
+      if (!connection.connected) {
+        toast.error("Connect Jira in Settings first");
+        return;
+      }
+    } catch {
+      toast.error("Could not reach Jira settings");
+      return;
+    }
+    const result = await refreshJiraCards(
+      excalidrawApi.getSceneElementsIncludingDeleted(),
+      [...cardGroups],
+      getJiraIssue,
+    );
+    if (result.updated > 0) {
+      excalidrawApi.updateScene({
+        elements: result.elements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+    }
+    if (result.failed > 0) {
+      toast.error(`Refreshed ${result.updated}, failed ${result.failed}`);
+    } else {
+      toast.success(
+        `Refreshed ${result.updated} Jira card${result.updated === 1 ? "" : "s"}`,
+      );
+    }
+  };
   // Ids of shapes an arrow end is about to bind to; only re-render when they change.
   const [anchorIds, setAnchorIds] = React.useState("");
 
@@ -393,6 +452,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
               <MainMenu.Item onSelect={() => setIsJiraOpen(true)}>
                 Add Jira card
               </MainMenu.Item>
+              {canEdit ? (
+                <MainMenu.Item onSelect={() => void handleRefreshJira()}>
+                  Refresh Jira cards
+                </MainMenu.Item>
+              ) : null}
               <MainMenu.ItemCustom>
                 <GridStepSelector
                   gridStep={gridStep}

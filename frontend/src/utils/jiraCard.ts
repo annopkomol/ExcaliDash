@@ -206,3 +206,88 @@ export const buildJiraCardElements = (
     groupIds: [groupId, ...(el.groupIds ?? [])],
   }));
 };
+
+const GROUP_ID_RE = /^jira-([A-Z][A-Z0-9_]+-\d+)-[a-z0-9]+$/;
+
+export const createJiraGroupId = (key: string) =>
+  `jira-${key}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** The issue key is recoverable from the card's groupId, so no custom data is needed. */
+export const parseJiraGroupId = (groupId: string): string | null =>
+  GROUP_ID_RE.exec(groupId)?.[1] ?? null;
+
+const MAX_REFRESH_CARDS = 20;
+
+export type JiraRefreshResult = {
+  updated: number;
+  failed: number;
+  elements: any[];
+};
+
+/**
+ * Rebuilds Jira cards in place from fresh issue data. Only touches the given
+ * groupIds (selected cards, or every card), keeps each card's position, and
+ * soft-deletes the old elements so collaborators sync the change.
+ */
+export const refreshJiraCards = async (
+  sceneElements: readonly any[],
+  groupIds: string[],
+  loadIssue: (key: string) => Promise<{
+    key: string;
+    summary: string;
+    issueType: JiraIssueType;
+    status: string;
+    statusCategory: JiraStatusCategory;
+    assignee: string | null;
+    url: string;
+  }>,
+): Promise<JiraRefreshResult> => {
+  let elements = [...sceneElements];
+  let updated = 0;
+  let failed = 0;
+  const now = Date.now();
+  for (const groupId of groupIds.slice(0, MAX_REFRESH_CARDS)) {
+    const key = parseJiraGroupId(groupId);
+    const members = elements.filter(
+      (el) => !el.isDeleted && el.groupIds?.includes(groupId),
+    );
+    if (!key || members.length === 0) continue;
+    let issue;
+    try {
+      issue = await loadIssue(key);
+    } catch {
+      failed += 1;
+      continue;
+    }
+    const base = members[0];
+    const fresh = buildJiraCardElements(
+      {
+        key: issue.key,
+        title: issue.summary || issue.key,
+        url: issue.url,
+        issueType: issue.issueType,
+        status: issue.status,
+        statusCategory: issue.statusCategory,
+        assignee: issue.assignee ?? undefined,
+      },
+      { x: base.x, y: base.y },
+      groupId,
+    );
+    const memberIds = new Set(members.map((el) => el.id));
+    const insertAt = elements.findIndex((el) => memberIds.has(el.id));
+    elements = elements.map((el) =>
+      memberIds.has(el.id)
+        ? {
+            ...el,
+            isDeleted: true,
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 2 ** 31),
+            updated: now,
+          }
+        : el,
+    );
+    elements.splice(insertAt, 0, ...fresh);
+    updated += 1;
+  }
+  return { updated, failed, elements };
+};

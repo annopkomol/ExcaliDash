@@ -55,7 +55,7 @@ export interface AuthUser {
 }
 
 export interface UserPreferences {
-  theme?: "light" | "dark";
+  theme?: "light" | "dark" | "system";
   dashboardSortField?: DrawingSortField;
   dashboardSortDirection?: SortDirection;
   language?: string;

@@ -1,6 +1,6 @@
 /**
  * Builds a Jira-style issue card out of plain Excalidraw elements (rectangles,
- * text, ellipse) sharing one groupId and a `link`. No custom element types or
+ * text, ellipse, image) sharing one groupId; the card background carries the `link`. No custom element types or
  * customData, so the card copy-pastes into excalidraw.com unchanged.
  */
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
@@ -16,6 +16,8 @@ export interface JiraCardInput {
   status: string;
   statusCategory: JiraStatusCategory;
   assignee?: string;
+  /** BinaryFiles id of an already-registered circular avatar image. */
+  avatarFileId?: string;
 }
 
 export const JIRA_TYPES: Record<
@@ -36,6 +38,19 @@ const STATUS_COLORS: Record<JiraStatusCategory, { bg: string; fg: string }> = {
 
 const CARD_WIDTH = 320;
 const TITLE_CHARS = 36;
+
+const JIRA_URL_RE =
+  /^https:\/\/[a-z0-9-]+\.atlassian\.net\/(?:browse\/([A-Z][A-Z0-9_]+-\d+)(?:[/?#]\S*)?|\S*[?&]selectedIssue=([A-Z][A-Z0-9_]+-\d+)\S*)$/i;
+
+/** Matches clipboard text that is exactly one Jira Cloud issue link. */
+export const parseJiraIssueUrl = (
+  text: string,
+): { key: string; url: string } | null => {
+  const value = text.trim();
+  const match = JIRA_URL_RE.exec(value);
+  const key = match?.[1] ?? match?.[2];
+  return key ? { key: key.toUpperCase(), url: value } : null;
+};
 
 /** Extract an issue key and a link from a pasted Jira URL or bare key. */
 export const parseJiraReference = (
@@ -123,7 +138,6 @@ export const buildJiraCardElements = (
       strokeWidth: 1,
       roughness: 0,
       roundness: { type: 3 },
-      link,
       label: {
         text: type.glyph,
         fontSize: 14,
@@ -139,7 +153,6 @@ export const buildJiraCardElements = (
       fontSize: 16,
       fontFamily: 2,
       strokeColor: "#0c66e4",
-      link,
     },
     {
       type: "text",
@@ -171,7 +184,17 @@ export const buildJiraCardElements = (
     },
   ];
 
-  if (input.assignee?.trim()) {
+  if (input.assignee?.trim() && input.avatarFileId) {
+    skeleton.push({
+      type: "image",
+      fileId: input.avatarFileId,
+      status: "saved",
+      x: x + CARD_WIDTH - 14 - 34,
+      y: bottomY - 3,
+      width: 34,
+      height: 34,
+    });
+  } else if (input.assignee?.trim()) {
     skeleton.push({
       type: "ellipse",
       x: x + CARD_WIDTH - 14 - 34,
@@ -218,10 +241,13 @@ export const parseJiraGroupId = (groupId: string): string | null =>
 
 const MAX_REFRESH_CARDS = 20;
 
+export type JiraAvatarFile = { fileId: string; file: any };
+
 export type JiraRefreshResult = {
   updated: number;
   failed: number;
   elements: any[];
+  files: any[];
 };
 
 /**
@@ -239,10 +265,13 @@ export const refreshJiraCards = async (
     status: string;
     statusCategory: JiraStatusCategory;
     assignee: string | null;
+    assigneeAvatar?: string | null;
     url: string;
   }>,
+  prepareAvatar?: (dataUrl: string) => Promise<JiraAvatarFile | null>,
 ): Promise<JiraRefreshResult> => {
   let elements = [...sceneElements];
+  const files: any[] = [];
   let updated = 0;
   let failed = 0;
   const now = Date.now();
@@ -260,6 +289,11 @@ export const refreshJiraCards = async (
       continue;
     }
     const base = members[0];
+    let avatar: JiraAvatarFile | null = null;
+    if (prepareAvatar && issue.assignee && issue.assigneeAvatar) {
+      avatar = await prepareAvatar(issue.assigneeAvatar);
+      if (avatar) files.push(avatar.file);
+    }
     const fresh = buildJiraCardElements(
       {
         key: issue.key,
@@ -269,6 +303,7 @@ export const refreshJiraCards = async (
         status: issue.status,
         statusCategory: issue.statusCategory,
         assignee: issue.assignee ?? undefined,
+        avatarFileId: avatar?.fileId,
       },
       { x: base.x, y: base.y },
       groupId,
@@ -289,5 +324,5 @@ export const refreshJiraCards = async (
     elements.splice(insertAt, 0, ...fresh);
     updated += 1;
   }
-  return { updated, failed, elements };
+  return { updated, failed, elements, files };
 };

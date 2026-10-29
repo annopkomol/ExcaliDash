@@ -197,8 +197,73 @@ describe("Jira integration", () => {
       status: "In Review",
       statusCategory: "inprogress",
       assignee: "Nop K",
+      assigneeAvatar: null,
       url: "https://acme.atlassian.net/browse/KERN-12",
     });
+  });
+
+  it("returns the assignee avatar only from allowlisted image hosts", async () => {
+    const png = Buffer.from("89504e470d0a1a0a", "hex");
+    const requested: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any) => {
+        const href = String(url);
+        requested.push(href);
+        if (href.includes("/rest/api/3/issue/")) {
+          return jsonResponse({
+            key: "KERN-13",
+            fields: {
+              summary: "x",
+              issuetype: { name: "Task" },
+              status: { name: "Done", statusCategory: { key: "done" } },
+              assignee: {
+                displayName: "Nop K",
+                avatarUrls: {
+                  "48x48":
+                    "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/a/48.png",
+                },
+              },
+            },
+          });
+        }
+        return new Response(png, {
+          status: 200,
+          headers: { "Content-Type": "image/png" },
+        });
+      }),
+    );
+    const ok = await asUser(agent.get("/integrations/jira/issues/KERN-13"));
+    expect(ok.body.assigneeAvatar).toBe(
+      `data:image/png;base64,${png.toString("base64")}`,
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any) => {
+        const href = String(url);
+        if (href.includes("/rest/api/3/issue/")) {
+          return jsonResponse({
+            key: "KERN-14",
+            fields: {
+              summary: "x",
+              issuetype: { name: "Task" },
+              status: { name: "Done", statusCategory: { key: "done" } },
+              assignee: {
+                displayName: "Nop K",
+                avatarUrls: { "48x48": "https://evil.example.com/a.png" },
+              },
+            },
+          });
+        }
+        throw new Error(`unexpected request to ${href}`);
+      }),
+    );
+    const blocked = await asUser(
+      agent.get("/integrations/jira/issues/KERN-14"),
+    );
+    expect(blocked.status).toBe(200);
+    expect(blocked.body.assigneeAvatar).toBeNull();
   });
 
   it("rejects malformed issue keys", async () => {

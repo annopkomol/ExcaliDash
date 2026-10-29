@@ -12,6 +12,7 @@ export type JiraIssue = {
   status: string;
   statusCategory: JiraStatusCategory;
   assignee: string | null;
+  assigneeAvatar: string | null;
   url: string;
 };
 

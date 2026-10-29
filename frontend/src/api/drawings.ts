@@ -221,6 +221,17 @@ export const resolveShareUsers = async (
   return response.data.users;
 };
 
+export type MentionableUser = { id: string; name: string };
+
+export const getMentionableUsers = async (
+  drawingId: string,
+): Promise<MentionableUser[]> => {
+  const response = await api.get<{ users: MentionableUser[] }>(
+    `/drawings/${drawingId}/mentionable-users`,
+  );
+  return response.data.users;
+};
+
 export type DrawingPermissionRow = {
   id: string;
   granteeUserId: string;

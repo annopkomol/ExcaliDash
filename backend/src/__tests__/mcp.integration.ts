@@ -210,6 +210,45 @@ describe("MCP endpoint", () => {
     expect(list.drawings.some((d: any) => d.id === id)).toBe(true);
   });
 
+  it("renders a drawing to a PNG image", async () => {
+    const created = parse(
+      await client.callTool({
+        name: "create_drawing",
+        arguments: {
+          name: "render me",
+          elements: [
+            {
+              type: "rectangle",
+              id: "a",
+              x: 0,
+              y: 0,
+              label: { text: "Hello" },
+            },
+            {
+              type: "ellipse",
+              id: "b",
+              x: 300,
+              y: 0,
+              label: { text: "World" },
+            },
+            { type: "arrow", from: "a", to: "b" },
+          ],
+        },
+      }),
+    );
+    const res: any = await client.callTool({
+      name: "render_drawing",
+      arguments: { id: created.id },
+    });
+    expect(res.isError).toBeFalsy();
+    const image = res.content[0];
+    expect(image.type).toBe("image");
+    expect(image.mimeType).toBe("image/png");
+    const bytes = Buffer.from(image.data, "base64");
+    expect(bytes.subarray(1, 4).toString()).toBe("PNG");
+    expect(bytes.length).toBeGreaterThan(1000);
+  });
+
   it("reports unknown element ids as tool errors", async () => {
     const created = parse(
       await client.callTool({

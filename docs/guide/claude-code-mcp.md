@@ -21,14 +21,15 @@ With `AUTH_MODE=disabled` no key is needed, so leave out `--header`.
 
 ## Tools
 
-| Tool                                  | What it does                                                                  |
-| ------------------------------------- | ----------------------------------------------------------------------------- |
-| `list_drawings`, `list_collections`   | Browse and search                                                             |
-| `get_drawing`                         | Compact element summary (default) or the full standard `.excalidraw` JSON     |
-| `create_drawing`, `import_excalidraw` | New drawing from simple element descriptions, or from a full `.excalidraw`    |
-| `add_elements`                        | Shapes with centered labels, text, and arrows attached with `from` / `to` ids |
-| `update_elements`, `delete_elements`  | Edit by id; deleting a shape also removes its label and attached arrows       |
-| `update_drawing`                      | Rename, move to a collection, or move to trash (no permanent delete)          |
+| Tool                                  | What it does                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `list_drawings`, `list_collections`   | Browse and search                                                                            |
+| `get_drawing`                         | Compact element summary (default) or the full standard `.excalidraw` JSON                    |
+| `render_drawing`                      | PNG image of the drawing so Claude can check layout after edits (simplified, not hand-drawn) |
+| `create_drawing`, `import_excalidraw` | New drawing from simple element descriptions, or from a full `.excalidraw`                   |
+| `add_elements`                        | Shapes with centered labels, text, and arrows attached with `from` / `to` ids                |
+| `update_elements`, `delete_elements`  | Edit by id; deleting a shape also removes its label and attached arrows                      |
+| `update_drawing`                      | Rename, move to a collection, or move to trash (no permanent delete)                         |
 
 Edits are version-checked against the saved drawing, so a concurrent change in the browser is merged instead of overwritten.
 

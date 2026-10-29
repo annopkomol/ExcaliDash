@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { renderPng } from "./render";
 import {
   buildElements,
   deleteElements,
@@ -16,7 +17,7 @@ export type BackendApi = (
 
 const INSTRUCTIONS = `ExcaliDash drawings are standard Excalidraw scenes. Everything you create here can be copy-pasted into excalidraw.com.
 
-Workflow: list_drawings or create_drawing, then add_elements / update_elements / delete_elements. Call get_drawing (summary) first to see what is already on the canvas before editing, and place new elements so they do not overlap existing ones.
+Workflow: list_drawings or create_drawing, then add_elements / update_elements / delete_elements. After editing, call render_drawing to look at the result. Call get_drawing (summary) first to see what is already on the canvas before editing, and place new elements so they do not overlap existing ones.
 
 Coordinates: x grows right, y grows down, units are pixels. A 160x60 rectangle with a label fits ~20 characters at the default 20px font. Leave 40-80px between connected shapes. Prefer 'label' on shapes over separate text elements, and 'from'/'to' on arrows so they stay attached when shapes move.
 Colours: strokeColor/backgroundColor accept hex. Soft fills read well: #a5d8ff blue, #b2f2bb green, #ffec99 yellow, #ffc9c9 red, #d0bfff purple, on strokeColor #1e1e1e.`;
@@ -265,6 +266,39 @@ export const createMcpServer = (api: BackendApi): McpServer => {
           elementCount: summary.length,
           elements: summary,
         });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    "render_drawing",
+    {
+      description:
+        "Render a drawing to a PNG image so you can look at it: check layout, overlaps, clipped labels and arrow routing after edits. Simplified rendering (clean strokes instead of the hand-drawn style).",
+      inputSchema: {
+        id: z.string(),
+        maxWidth: z.number().int().min(400).max(2400).default(1200),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ id, maxWidth }) => {
+      try {
+        const d = await loadDrawing(id);
+        const png = renderPng(d.elements ?? [], d.files ?? {}, {
+          maxWidth,
+          background: d.appState?.viewBackgroundColor,
+        });
+        return {
+          content: [
+            {
+              type: "image" as const,
+              data: png.toString("base64"),
+              mimeType: "image/png",
+            },
+          ],
+        };
       } catch (e) {
         return fail((e as Error).message);
       }

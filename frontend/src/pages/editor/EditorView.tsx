@@ -20,6 +20,8 @@ import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
+import { ArrowAnchorOverlay } from "./ArrowAnchorOverlay";
+import { snapArrowToAnchors } from "./arrowSnap";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -143,7 +145,53 @@ export const EditorView: React.FC<EditorViewProps> = ({
   onHistoryOpen,
   onToggleAutoHide,
   onToggleTheme,
-}) => (
+}) => {
+  const apiRef = React.useRef<any>(null);
+  // Ids of shapes an arrow end is about to bind to; only re-render when they change.
+  const [anchorIds, setAnchorIds] = React.useState("");
+
+  const handleSetApi = (api: any) => {
+    apiRef.current = api;
+    onSetExcalidrawAPI(api);
+  };
+
+  const handleChange = (
+    elements: readonly any[],
+    appState: any,
+    files?: Record<string, any>,
+  ) => {
+    const ids = (appState?.suggestedBindings ?? [])
+      .map((el: any) => el?.id)
+      .join(",");
+    setAnchorIds((prev) => (prev === ids ? prev : ids));
+    onCanvasChange(elements, appState, files);
+  };
+
+  // Miro-style: after an arrow end binds to a shape, snap it to the nearest anchor.
+  const snapSelectedArrows = () => {
+    const api = apiRef.current;
+    if (!api || !canEdit) return;
+    const appState = api.getAppState();
+    const elements = api.getSceneElements();
+    const byId = new Map<string, any>(elements.map((el: any) => [el.id, el]));
+    const selected = appState.selectedElementIds ?? {};
+    let changed = false;
+    const next = elements.map((el: any) => {
+      if (!selected[el.id]) return el;
+      const snapped = snapArrowToAnchors(el, byId, appState.zoom?.value ?? 1);
+      if (!snapped) return el;
+      changed = true;
+      return snapped;
+    });
+    if (changed) api.updateScene({ elements: next });
+  };
+
+  // Let Excalidraw commit the binding for this pointer-up before reading it.
+  const handlePointerUp = () => {
+    window.setTimeout(snapSelectedArrows, 0);
+  };
+
+  return (
   <div
     className="h-screen flex flex-col bg-white dark:bg-neutral-950 overflow-hidden"
     onKeyDownCapture={(event) => {
@@ -319,10 +367,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
           theme={theme === "dark" ? "dark" : "light"}
           langCode={langCode}
           initialData={initialData}
-          onChange={onCanvasChange}
+          onChange={handleChange}
+          onPointerUp={handlePointerUp}
           onPointerUpdate={onPointerUpdate}
           onLibraryChange={onLibraryChange}
-          excalidrawAPI={onSetExcalidrawAPI}
+          excalidrawAPI={handleSetApi}
           UIOptions={UIOptions}
           validateEmbeddable={validateEmbeddableUrl}
           viewModeEnabled={!canEdit || isHistoryOpen}
@@ -351,6 +400,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
           </span>
         </div>
       )}
+      {anchorIds && apiRef.current ? (
+        <ArrowAnchorOverlay api={apiRef.current} />
+      ) : null}
       {historyPreview ? (
         <HistoryPreviewCanvas
           snapshot={historyPreview}
@@ -362,3 +414,4 @@ export const EditorView: React.FC<EditorViewProps> = ({
     </div>
   </div>
 );
+};

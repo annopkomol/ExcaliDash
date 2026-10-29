@@ -30,6 +30,7 @@ import { logAuditEvent } from "./utils/audit";
 import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
+import { registerJiraRoutes } from "./routes/jira";
 import { registerFileRoutes } from "./routes/files";
 import { registerStorageRoutes } from "./routes/storage";
 import { prisma, configureSqlite } from "./db/prisma";
@@ -594,6 +595,7 @@ registerDashboardRoutes(app, {
   io,
 });
 registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });
+registerJiraRoutes(app, { prisma, requireAuth, asyncHandler });
 registerStorageRoutes(app, {
   prisma,
   requireAuth,

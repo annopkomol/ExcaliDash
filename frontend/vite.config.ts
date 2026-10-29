@@ -41,6 +41,10 @@ export default defineConfig(({ command }) => {
       chunkSizeWarningLimit: 2000,
     },
     server: {
+      // Set by scripts/dev-local.mjs when reaching the dev stack over Tailscale.
+      ...(process.env.VITE_DEV_HOST
+        ? { host: process.env.VITE_DEV_HOST, allowedHosts: true }
+        : {}),
       proxy: {
         "/api": {
           target: devBackendTarget,

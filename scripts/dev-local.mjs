@@ -25,6 +25,14 @@ for (const pkg of ["backend", "frontend"]) {
   }
 }
 
+// Set by dev-canvas.mjs --tailscale: serve the frontend on the tailnet address
+// only (auth is disabled, so never bind all interfaces) and allow its origins.
+const tailscaleHosts = [
+  process.env.DEV_TAILSCALE_IP,
+  process.env.DEV_TAILSCALE_NAME,
+].filter(Boolean);
+const tailscaleOrigins = tailscaleHosts.map((h) => `http://${h}:6767`);
+
 const backendPort = process.env.PORT || "8000";
 const env = {
   ...process.env,
@@ -32,10 +40,16 @@ const env = {
   PORT: backendPort,
   BACKEND_HOST: "127.0.0.1",
   AUTH_MODE: "disabled",
+  // Fixed so open tabs keep working when node --watch restarts the backend
+  // (a random per-process secret invalidates their CSRF tokens -> save fails).
+  CSRF_SECRET: process.env.CSRF_SECRET || "dev-local-csrf-secret",
   DATABASE_URL: `file:${path.join(dataDir, "dev.db")}`,
   BACKUP_DIR: path.join(dataDir, "backups"),
-  FRONTEND_URL: "http://localhost:6767",
+  FRONTEND_URL: ["http://localhost:6767", ...tailscaleOrigins].join(","),
   VITE_API_URL: "/api",
+  ...(process.env.DEV_TAILSCALE_IP
+    ? { VITE_DEV_HOST: process.env.DEV_TAILSCALE_IP }
+    : {}),
   VITE_DEV_BACKEND_URL: `http://localhost:${backendPort}`,
 };
 

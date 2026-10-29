@@ -12,15 +12,17 @@ import {
 
 type Props = {
   disabled: boolean;
+  isAdmin: boolean;
   onSuccess: (message: string) => void;
 };
 
 /**
- * Per-user Jira Cloud credentials. The API token is sent once to the backend,
+ * One site-wide Jira Cloud connection, managed by an admin and shared by every
+ * user for filling cards. The API token is sent once to the backend,
  * which verifies and stores it encrypted; it is never returned or kept in the
  * browser, so the form is cleared after saving.
  */
-export const JiraCard: React.FC<Props> = ({ disabled, onSuccess }) => {
+export const JiraCard: React.FC<Props> = ({ disabled, isAdmin, onSuccess }) => {
   const [status, setStatus] = useState<api.JiraConnectionStatus | null>(null);
   const [siteUrl, setSiteUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -82,7 +84,7 @@ export const JiraCard: React.FC<Props> = ({ disabled, onSuccess }) => {
         icon={<SquareKanban size={20} />}
         tileClassName="border-black bg-blue-400 text-black dark:border-neutral-700 dark:bg-blue-400 dark:text-black"
         title="Jira"
-        subtitle="Fill Jira cards on the canvas from your issues"
+        subtitle="Shared connection used to fill Jira cards on the canvas"
       />
       {error && (
         <div className="mb-3 p-3.5 bg-red-50 dark:bg-red-950 border-2 border-red-200 dark:border-red-800 rounded-xl">
@@ -97,18 +99,25 @@ export const JiraCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                 {status.siteUrl}
               </p>
               <p className="text-xs text-slate-500 dark:text-neutral-400 break-all">
-                {status.email} · API token stored encrypted
+                {status.email ? `${status.email} · ` : ""}Connected by an admin
+                {isAdmin ? " · API token stored encrypted" : ""}
               </p>
             </div>
-            <button
-              type="button"
-              className={settingsButtonClass}
-              disabled={loading}
-              onClick={() => void handleDisconnect()}
-            >
-              Disconnect
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className={settingsButtonClass}
+                disabled={loading}
+                onClick={() => void handleDisconnect()}
+              >
+                Disconnect
+              </button>
+            ) : null}
           </div>
+        ) : !isAdmin ? (
+          <p className="px-4 py-3.5 text-sm text-slate-600 dark:text-neutral-300 sm:px-5">
+            Jira is not connected. Ask an admin to connect it here.
+          </p>
         ) : (
           <form
             onSubmit={handleConnect}
@@ -143,7 +152,9 @@ export const JiraCard: React.FC<Props> = ({ disabled, onSuccess }) => {
             <p className="text-xs text-slate-500 dark:text-neutral-400">
               Create a token at id.atlassian.com → Security → API tokens. It is
               verified against Jira, then stored encrypted on the server and
-              never shown again. Only *.atlassian.net sites are supported.
+              never shown again. Only *.atlassian.net sites are supported. Every
+              user can fill cards through this connection, so use an account
+              that can see only the projects you want to share.
             </p>
             <button
               type="submit"

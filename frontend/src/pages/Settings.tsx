@@ -357,6 +357,8 @@ export const Settings: React.FC = () => {
           />
           <JiraCard
             disabled={mustResetPassword}
+            // With auth disabled every request acts as the shared admin account.
+            isAdmin={authEnabled === false || user?.role === "ADMIN"}
             onSuccess={setSettingsSuccess}
           />
         </div>

@@ -3,6 +3,8 @@ import { findMagnetTarget, type MagnetHit } from "./arrowSnap";
 
 /** How far outside a shape (in screen px) an arrow end is still pulled onto it. */
 const MAGNET_MARGIN_PX = 24;
+/** How close (in screen px) to a side midpoint an end slides before locking onto it. */
+export const ANCHOR_LOCK_PX = 18;
 /** How close (in screen px) a press must be to an arrow end to count as dragging it. */
 const ENDPOINT_GRAB_PX = 14;
 
@@ -74,8 +76,9 @@ const isOnCanvas = (target: EventTarget | null) =>
 
 /**
  * Miro-style magnet for arrow ends: while drawing an arrow, or dragging the
- * end of a selected one, the pointer is pulled onto the nearest side-midpoint
- * anchor of the shape under (or near) it, so Excalidraw binds right there.
+ * end of a selected one, the pointer is pulled onto the outline of the shape
+ * under (or near) it, and locks onto a side midpoint when close to one, so
+ * Excalidraw binds right there.
  * Hold Ctrl/Cmd to place the end freely, as Excalidraw does for binding.
  */
 export const useArrowMagnet = (api: any, enabled: boolean): MagnetPreview => {
@@ -105,6 +108,7 @@ export const useArrowMagnet = (api: any, enabled: boolean): MagnetPreview => {
         api.getSceneElements(),
         toScene(appState, event.clientX, event.clientY),
         MAGNET_MARGIN_PX / zoom,
+        ANCHOR_LOCK_PX / zoom,
         { excludeIds, editingGroupId: appState.editingGroupId },
       );
     };

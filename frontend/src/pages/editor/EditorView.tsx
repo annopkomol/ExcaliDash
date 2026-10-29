@@ -43,7 +43,7 @@ import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
 import { ArrowAnchorOverlay } from "./ArrowAnchorOverlay";
 import { reattachAnchoredArrows, snapArrowToAnchors } from "./arrowSnap";
-import { useArrowMagnet } from "./useArrowMagnet";
+import { ANCHOR_LOCK_PX, useArrowMagnet } from "./useArrowMagnet";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 
 interface Peer extends UserIdentity {
@@ -467,7 +467,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
     let changed = false;
     const next = elements.map((el: any) => {
       if (!selected[el.id]) return el;
-      const snapped = snapArrowToAnchors(el, byId, appState.zoom?.value ?? 1);
+      const snapped = snapArrowToAnchors(
+        el,
+        byId,
+        ANCHOR_LOCK_PX / (appState.zoom?.value ?? 1),
+      );
       if (!snapped) return el;
       changed = true;
       return snapped;

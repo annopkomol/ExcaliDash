@@ -27,6 +27,10 @@ import {
   parseJiraIssueUrl,
   refreshJiraCards,
 } from "../../utils/jiraCard";
+import {
+  filesNeedRehydration,
+  rehydrateFilesFromUrls,
+} from "../../utils/rehydrateFiles";
 import { insertJiraCard, prepareAvatar } from "../../utils/jiraCardInsert";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
 import { StickyNoteMenu } from "../../components/StickyNoteMenu";
@@ -265,7 +269,15 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const jiraPasteHintShown = React.useRef(false);
 
   // Pasting a single Jira issue link drops a card at the pointer instead of plain text.
-  const handlePaste = async (data: { text?: string }): Promise<boolean> => {
+  const handlePaste = async (data: {
+    text?: string;
+    files?: Record<string, any>;
+  }): Promise<boolean> => {
+    // Copied scenes carry `/api/files/...` refs; Excalidraw reads these files
+    // straight from `data.files`, so inline them in place before it does.
+    if (data?.files && filesNeedRehydration(data.files)) {
+      Object.assign(data.files, await rehydrateFilesFromUrls(data.files));
+    }
     const parsed = parseJiraIssueUrl(data?.text ?? "");
     if (!parsed || !canEdit || !excalidrawApi) return true;
     try {

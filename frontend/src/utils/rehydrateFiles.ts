@@ -35,6 +35,24 @@ export const filesNeedRehydration = (
   );
 };
 
+/**
+ * Copy of `files` without the stored references that still need re-inlining.
+ * Excalidraw's `addFiles` never overwrites a file id it already holds, so a
+ * reference seeded through `initialData` could never be replaced by its
+ * hydrated bytes, and an SVG reference makes every export throw. Seed only
+ * inline files, then add the rest through `addFiles` once they are fetched.
+ */
+export const withoutFileRefs = (
+  files: Record<string, any> | null | undefined,
+): Record<string, any> => {
+  if (!files || typeof files !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(files).filter(
+      ([, file]) => !isRehydratableRef((file as any)?.dataURL),
+    ),
+  );
+};
+
 const blobToDataUrl = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();

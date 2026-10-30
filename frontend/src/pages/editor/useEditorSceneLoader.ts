@@ -3,7 +3,10 @@ import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
-import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
+import {
+  rehydrateFilesProgressive,
+  withoutFileRefs,
+} from "../../utils/rehydrateFiles";
 import {
   DEFAULT_ITEM_STYLE,
   getPersistedAppState,
@@ -181,7 +184,7 @@ export const useEditorSceneLoader = ({
         setInitialData({
           elements,
           appState: hydratedAppState,
-          files,
+          files: withoutFileRefs(files),
           scrollToContent: true,
           libraryItems,
         });

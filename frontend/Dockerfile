@@ -24,8 +24,10 @@ RUN npm run build
 FROM nginxinc/nginx-unprivileged:alpine
 
 # Apply Alpine security fixes that may postdate the nginx base image.
+# Refresh the package layer when the image's build label changes.
 USER root
-RUN apk upgrade --no-cache
+ARG VITE_APP_BUILD_LABEL
+RUN : "${VITE_APP_BUILD_LABEL}" && apk upgrade --no-cache
 USER nginx
 
 # Copy nginx config template (will be processed at runtime)

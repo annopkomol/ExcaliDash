@@ -1,3 +1,4 @@
+import { dropLegacyBindingsOnDeletedArrows } from "../../utils/legacyBindings";
 import { useCallback, useEffect } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
@@ -182,7 +183,7 @@ export const useEditorSceneLoader = ({
         };
         refs.latestAppState.current = hydratedAppState;
         setInitialData({
-          elements,
+          elements: dropLegacyBindingsOnDeletedArrows(elements),
           appState: hydratedAppState,
           files: withoutFileRefs(files),
           scrollToContent: true,

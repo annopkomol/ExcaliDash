@@ -13,7 +13,7 @@ vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(),
   useLocation: vi.fn(),
 }));
-vi.mock("@excalidraw/excalidraw", () => ({ exportToSvg: vi.fn() }));
+vi.mock("@excalidraw/excalidraw", () => ({ exportScene: vi.fn() }));
 vi.mock("../src/api", () => ({
   getDrawing: vi.fn(),
   updateDrawing: vi.fn(),

@@ -70,6 +70,12 @@ const renderElement = (
       const r = el.roundness ? Math.min(w, h) * 0.12 : 0;
       return `<rect x="0" y="0" width="${w}" height="${h}" rx="${r}" ${common}/>`;
     }
+    case "stickynote": {
+      // Upstream sticky note: a filled rounded card; its label is a separate
+      // bound text element rendered by the "text" case.
+      const r = Math.min(w, h) * 0.04;
+      return `<rect x="0" y="0" width="${w}" height="${h}" rx="${r}" ${common}/>`;
+    }
     case "ellipse":
       return `<ellipse cx="${w / 2}" cy="${h / 2}" rx="${w / 2}" ry="${h / 2}" ${common}/>`;
     case "diamond":

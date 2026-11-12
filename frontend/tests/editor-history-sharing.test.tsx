@@ -9,7 +9,7 @@ import { useEditorPersistence } from "../src/pages/editor/useEditorPersistence";
 import { useEditorCommands } from "../src/pages/editor/useEditorCommands";
 import { ShareModal } from "../src/components/ShareModal";
 import * as api from "../src/api";
-import { exportToSvg } from "@excalidraw/excalidraw";
+import { exportScene } from "@excalidraw/excalidraw";
 import { saveDrawingKeepalive } from "../src/pages/editor/keepaliveSave";
 import type { DrawingSnapshotFull } from "../src/api";
 import { validateEmbeddableUrl } from "../src/pages/editor/shared";
@@ -39,7 +39,7 @@ vi.mock("@excalidraw/excalidraw", () => {
         Help: () => null,
       },
     }),
-    exportToSvg: vi.fn(async () => ({ outerHTML: "<svg />" })),
+    exportScene: vi.fn(async () => ({ outerHTML: "<svg />" })),
   };
 });
 vi.mock("../src/api", () => ({
@@ -317,8 +317,14 @@ describe("isolated history preview", () => {
       expect(data.elements).toEqual(liveElements);
       expect(data.files ?? {}).not.toHaveProperty("oldImage");
     });
-    expect(exportToSvg).toHaveBeenCalledWith(
-      expect.objectContaining({ elements: liveElements, files: liveFiles }),
+    expect(exportScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "svg",
+        data: expect.objectContaining({
+          elements: liveElements,
+          files: liveFiles,
+        }),
+      }),
     );
     expect(saveDrawingKeepalive).toHaveBeenCalledWith(
       "drawing",

@@ -1,22 +1,18 @@
 import { test, expect } from "@playwright/test";
 
-const themeToggle = (page: import("@playwright/test").Page) =>
-  page.getByRole("switch", { name: "Toggle dark mode" });
+type Page = import("@playwright/test").Page;
 
-const ensureDarkTheme = async (page: import("@playwright/test").Page) => {
-  const html = page.locator("html");
-  if (!(await html.evaluate((el) => el.classList.contains("dark")))) {
-    await themeToggle(page).click();
-    await expect(html).toHaveClass(/dark/);
-  }
+// Settings exposes theme as an "Appearance" select (system / light / dark).
+const appearance = (page: Page) => page.getByLabel("Appearance");
+
+const ensureDarkTheme = async (page: Page) => {
+  await appearance(page).selectOption("dark");
+  await expect(page.locator("html")).toHaveClass(/dark/);
 };
 
-const ensureLightTheme = async (page: import("@playwright/test").Page) => {
-  const html = page.locator("html");
-  if (await html.evaluate((el) => el.classList.contains("dark"))) {
-    await themeToggle(page).click();
-    await expect(html).not.toHaveClass(/dark/);
-  }
+const ensureLightTheme = async (page: Page) => {
+  await appearance(page).selectOption("light");
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
 };
 
 /**
@@ -33,24 +29,22 @@ test.describe("Theme Toggle", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const themeButton = themeToggle(page);
-    await expect(themeButton).toBeVisible();
+    const select = appearance(page);
+    await expect(select).toBeVisible();
 
     const html = page.locator("html");
     const initialDark = await html.evaluate((el) =>
       el.classList.contains("dark"),
     );
 
-    await themeButton.click();
-    await page.waitForTimeout(500);
-
-    const newDark = await html.evaluate((el) => el.classList.contains("dark"));
-    expect(newDark).toBe(!initialDark);
-
-    await expect(themeButton).toHaveAttribute(
-      "aria-checked",
-      String(!initialDark),
-    );
+    const next = initialDark ? "light" : "dark";
+    await select.selectOption(next);
+    await expect(select).toHaveValue(next);
+    if (initialDark) {
+      await expect(html).not.toHaveClass(/dark/);
+    } else {
+      await expect(html).toHaveClass(/dark/);
+    }
   });
 
   test("should persist theme across page navigation", async ({ page }) => {

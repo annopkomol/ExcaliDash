@@ -142,11 +142,13 @@ test("theme preference survives a fresh browser context without local storage", 
 }) => {
   await signIn(page);
   await page.goto("/settings");
-  const toggle = page.getByRole("switch", { name: "Toggle dark mode" });
-  await expect(toggle).toBeVisible();
-  const wasDark = (await toggle.getAttribute("aria-checked")) === "true";
-  await toggle.click();
-  const expectedTheme = wasDark ? "light" : "dark";
+  const appearance = page.getByLabel("Appearance");
+  await expect(appearance).toBeVisible();
+  const before = await page.request.get(`${API_URL}/auth/preferences`);
+  expect(before.ok()).toBe(true);
+  const previousTheme = (await before.json()).preferences.theme;
+  const expectedTheme = previousTheme === "dark" ? "light" : "dark";
+  await appearance.selectOption(expectedTheme);
   await expect
     .poll(async () => {
       const response = await page.request.get(`${API_URL}/auth/preferences`);
@@ -162,14 +164,12 @@ test("theme preference survives a fresh browser context without local storage", 
   try {
     const otherPage = await fresh.newPage();
     await otherPage.goto("/settings");
-    await expect(
-      otherPage.getByRole("switch", { name: "Toggle dark mode" }),
-    ).toHaveAttribute("aria-checked", String(!wasDark));
+    await expect(otherPage.getByLabel("Appearance")).toHaveValue(expectedTheme);
   } finally {
     await fresh.close();
     const restored = await page.request.put(`${API_URL}/auth/preferences`, {
       headers: await getCsrfHeaders(page.request),
-      data: { theme: wasDark ? "dark" : "light" },
+      data: { theme: previousTheme },
     });
     expect(restored.ok()).toBe(true);
   }

@@ -34,9 +34,9 @@ async function drawRectangle(page: Page) {
     .locator("canvas.excalidraw__canvas.interactive")
     .boundingBox();
   if (!box) throw new Error("Canvas not found");
-  const rectangle = page.getByRole("radio", { name: "Rectangle", exact: true });
-  await page.locator('label:has([data-testid="toolbar-rectangle"])').click();
-  await expect(rectangle).toBeChecked();
+  const rectangle = page.locator('[data-testid="toolbar-rectangle"]');
+  await rectangle.click();
+  await expect(rectangle).toHaveAttribute("aria-pressed", "true");
   await page.mouse.move(box.x + 350, box.y + 250);
   await page.mouse.down();
   await page.mouse.move(box.x + 550, box.y + 350, { steps: 5 });

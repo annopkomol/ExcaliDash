@@ -33,21 +33,12 @@ import {
 } from "../../utils/rehydrateFiles";
 import { insertJiraCard, prepareAvatar } from "../../utils/jiraCardInsert";
 import { JiraCardDialog } from "../../components/JiraCardDialog";
-import { StickyNoteMenu } from "../../components/StickyNoteMenu";
 import { StickerPicker } from "../../components/StickerPicker";
 import { buildSticker, type Sticker } from "../../utils/stickers";
-import {
-  DEFAULT_STICKY_COLOR,
-  STICKY_TEXT_STATE,
-  buildStickyNote,
-} from "../../utils/stickyNote";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
-import { ArrowAnchorOverlay } from "./ArrowAnchorOverlay";
-import { reattachAnchoredArrows, snapArrowToAnchors } from "./arrowSnap";
-import { ANCHOR_LOCK_PX, useArrowMagnet } from "./useArrowMagnet";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 
 interface Peer extends UserIdentity {
@@ -175,44 +166,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
   const [isJiraOpen, setIsJiraOpen] = React.useState(false);
-  const [stickyColor, setStickyColor] =
-    React.useState<string>(DEFAULT_STICKY_COLOR);
-
-  const addStickyNote = React.useCallback(
-    (color: string) => {
-      const api = excalidrawApi as any;
-      if (!api || !canEdit || isHistoryOpen) return;
-      setStickyColor(color);
-      const appState = api.getAppState();
-      const zoom = appState.zoom?.value || 1;
-      const center = {
-        x: -appState.scrollX + appState.width / 2 / zoom,
-        y: -appState.scrollY + appState.height / 2 / zoom,
-      };
-      const [note] = buildStickyNote(center, color);
-      api.updateScene({
-        elements: [...api.getSceneElements(), note],
-        appState: {
-          ...STICKY_TEXT_STATE,
-          selectedElementIds: { [note.id]: true },
-        },
-        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-      });
-      // Enter on a selected container starts typing straight into the note.
-      window.setTimeout(() => {
-        document
-          .querySelector(".excalidraw-container, .excalidraw")
-          ?.dispatchEvent(
-            new KeyboardEvent("keydown", {
-              key: "Enter",
-              code: "Enter",
-              bubbles: true,
-            }),
-          );
-      }, 50);
-    },
-    [excalidrawApi, canEdit, isHistoryOpen],
-  );
 
   const addSticker = React.useCallback(
     async (sticker: Sticker) => {
@@ -235,25 +188,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
     [excalidrawApi, canEdit, isHistoryOpen],
   );
 
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        !event.shiftKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        event.key.toLowerCase() !== "n"
-      )
-        return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, [contenteditable='true']"))
-        return;
-      event.preventDefault();
-      addStickyNote(stickyColor);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addStickyNote, stickyColor]);
   const peerNames = React.useMemo(
     () => [me.name, ...peers.map((p) => p.name)],
     [me.name, peers],
@@ -399,39 +333,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
       );
     }
   };
-  const magnetPreview = useArrowMagnet(excalidrawApi, canEdit && !isHistoryOpen);
-  const reattachingRef = React.useRef(false);
-
   const handleChange = (
     elements: readonly any[],
     appState: any,
     files?: Record<string, any>,
   ) => {
-    // Keep anchored arrow ends on their anchor when the shapes they attach to change.
-    if (excalidrawApi && canEdit && !isHistoryOpen && !reattachingRef.current) {
-      const skip = new Set<string>();
-      if (appState.newElement?.id) skip.add(appState.newElement.id);
-      if (appState.cursorButton === "down") {
-        for (const [eid, on] of Object.entries(appState.selectedElementIds ?? {})) {
-          if (on) skip.add(eid);
-        }
-      }
-      const fixed = reattachAnchoredArrows(elements, skip);
-      if (fixed.length) {
-        const byId = new Map(fixed.map((el) => [el.id, el]));
-        reattachingRef.current = true;
-        try {
-          excalidrawApi.updateScene({
-            elements: excalidrawApi
-              .getSceneElementsIncludingDeleted()
-              .map((el: any) => byId.get(el.id) ?? el),
-          });
-        } finally {
-          reattachingRef.current = false;
-        }
-        return;
-      }
-    }
     const selectedGroupId = Object.keys(appState?.selectedGroupIds ?? {}).find(
       (gid) => parseJiraGroupId(gid) && appState.selectedGroupIds[gid],
     );
@@ -466,34 +372,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
         : badge,
     );
     onCanvasChange(elements, appState, files);
-  };
-
-  // Miro-style: after an arrow end binds to a shape, attach it to the nearest anchor.
-  const snapSelectedArrows = () => {
-    const api = excalidrawApi;
-    if (!api || !canEdit) return;
-    const appState = api.getAppState();
-    const elements = api.getSceneElements();
-    const byId = new Map<string, any>(elements.map((el: any) => [el.id, el]));
-    const selected = appState.selectedElementIds ?? {};
-    let changed = false;
-    const next = elements.map((el: any) => {
-      if (!selected[el.id]) return el;
-      const snapped = snapArrowToAnchors(
-        el,
-        byId,
-        ANCHOR_LOCK_PX / (appState.zoom?.value ?? 1),
-      );
-      if (!snapped) return el;
-      changed = true;
-      return snapped;
-    });
-    if (changed) api.updateScene({ elements: next });
-  };
-
-  // Let Excalidraw commit the binding for this pointer-up before reading it.
-  const handlePointerUp = () => {
-    window.setTimeout(snapSelectedArrows, 0);
   };
 
   return (
@@ -681,11 +559,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
             langCode={langCode}
             initialData={initialData}
             onChange={handleChange}
-            onPointerUp={handlePointerUp}
             onPaste={handlePaste}
             onPointerUpdate={onPointerUpdate}
             onLibraryChange={onLibraryChange}
-            excalidrawAPI={(api: any) => {
+            onExcalidrawAPI={(api: any) => {
               setExcalidrawApi(api);
               onSetExcalidrawAPI(api);
             }}
@@ -702,13 +579,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
               <MainMenu.DefaultItems.ChangeCanvasBackground />
               <MainMenu.DefaultItems.Help />
               <MainMenu.Separator />
-              <MainMenu.ItemCustom>
-                <StickyNoteMenu
-                  selected={stickyColor}
-                  disabled={!canEdit}
-                  onAdd={addStickyNote}
-                />
-              </MainMenu.ItemCustom>
               <MainMenu.ItemCustom>
                 <StickerPicker disabled={!canEdit} onAdd={addSticker} />
               </MainMenu.ItemCustom>
@@ -757,9 +627,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
               className={jiraRefreshing ? "animate-spin" : ""}
             />
           </button>
-        ) : null}
-        {magnetPreview && excalidrawApi ? (
-          <ArrowAnchorOverlay api={excalidrawApi} preview={magnetPreview} />
         ) : null}
         {historyPreview ? (
           <HistoryPreviewCanvas

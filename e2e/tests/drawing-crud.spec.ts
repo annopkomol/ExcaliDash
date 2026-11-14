@@ -197,15 +197,12 @@ test.describe("Drawing Editing", () => {
       `Canvas bounding box: x=${box.x}, y=${box.y}, width=${box.width}, height=${box.height}`,
     );
 
-    const rectangleLabel = page.locator(
-      'label:has([data-testid="toolbar-rectangle"])',
-    );
-    await rectangleLabel.click();
+    const rectangleTool = page.locator('[data-testid="toolbar-rectangle"]');
+    await rectangleTool.click();
     await page.waitForTimeout(500);
 
-    const isRectangleSelectedBefore = await page
-      .locator('[data-testid="toolbar-rectangle"]')
-      .isChecked();
+    const isRectangleSelectedBefore =
+      (await rectangleTool.getAttribute("aria-pressed")) === "true";
     console.log(
       "Rectangle tool selected before drawing:",
       isRectangleSelectedBefore,

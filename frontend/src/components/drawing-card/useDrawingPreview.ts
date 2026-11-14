@@ -125,21 +125,16 @@ export const useDrawingPreview = (
             ),
           ),
         );
-        const { exportToSvg } = await import("@excalidraw/excalidraw");
+        const { exportPreviewSvg } = await import("../../utils/exportPreviewSvg");
         if (cancelled) return;
 
-        const svg = await exportToSvg({
+        const svg = await exportPreviewSvg({
           elements: normalizeImageElementsForPreview(data.elements, files),
-          appState: {
-            ...data.appState,
-            exportWithDarkMode: false,
-            exportBackground: !isDefaultPreviewBackground(
-              data.appState.viewBackgroundColor,
-            ),
-            viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff",
-          },
           files,
-          exportPadding: 10,
+          exportBackground: !isDefaultPreviewBackground(
+            data.appState.viewBackgroundColor,
+          ),
+          viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff",
         });
 
         if (cancelled) return;
